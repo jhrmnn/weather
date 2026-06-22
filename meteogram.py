@@ -27,6 +27,8 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import json
+import os
+import sys
 from dataclasses import dataclass
 
 import matplotlib
@@ -35,10 +37,7 @@ matplotlib.use("Agg")
 import matplotlib.dates as mdates  # noqa: E402
 import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
-import requests  # noqa: E402
 
-ENSEMBLE_URL = "https://ensemble-api.open-meteo.com/v1/ensemble"
-MODEL = "ecmwf_ifs025"
 N_PERTURBED = 50  # perturbed members; the control is the base series (member 0)
 
 # ECMWF-style colours.
@@ -76,33 +75,20 @@ class EnsembleData:
         return self.members.shape[0]
 
 
-def fetch(
-    latitude: float,
-    longitude: float,
-    forecast_days: int = 11,
+def parse_payload(
+    payload: dict,
+    requested_lat: float,
+    requested_lon: float,
     variable: str = "temperature_2m",
-    raw_out: str | None = None,
 ) -> EnsembleData:
-    """Fetch the ECMWF ensemble for ``variable`` at one point from Open-Meteo."""
+    """Parse a raw Open-Meteo response (live or archived) into ``EnsembleData``.
+
+    ``requested_lat``/``requested_lon`` are the coordinates that were asked for
+    (the payload only carries the snapped grid point), used for the title.
+    """
     member_vars = [variable] + [
         f"{variable}_member{n:02d}" for n in range(1, N_PERTURBED + 1)
     ]
-    params = {
-        "latitude": latitude,
-        "longitude": longitude,
-        "hourly": variable,
-        "models": MODEL,
-        "temporal_resolution": "native",  # 3-hourly for ECMWF IFS ENS
-        "forecast_days": forecast_days,
-        "timezone": "GMT",
-    }
-    resp = requests.get(ENSEMBLE_URL, params=params, timeout=60)
-    resp.raise_for_status()
-    payload = resp.json()
-
-    if raw_out:
-        with open(raw_out, "w") as fh:
-            json.dump(payload, fh, indent=2)
 
     hourly = payload["hourly"]
     times = np.array(hourly["time"], dtype="datetime64[m]")
@@ -120,8 +106,8 @@ def fetch(
         members=members,
         latitude=payload["latitude"],
         longitude=payload["longitude"],
-        requested_lat=latitude,
-        requested_lon=longitude,
+        requested_lat=requested_lat,
+        requested_lon=requested_lon,
         elevation=payload.get("elevation", float("nan")),
         variable=variable,
         units=units,
@@ -291,10 +277,20 @@ def main() -> None:
                         help="also write the raw API response to this path")
     args = parser.parse_args()
 
+    # Fetching lives in the data layer (data/collect.py); meteogram only parses
+    # and plots. Import it lazily so the plotting API has no fetch dependency.
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                    "data"))
+    import collect  # noqa: E402
+
     print(f"Fetching ECMWF IFS ensemble for {args.latitude}, {args.longitude} "
           f"({args.forecast_days} days, native 3-hourly) ...")
-    data = fetch(args.latitude, args.longitude, args.forecast_days,
-                 raw_out=args.save_json)
+    payload = collect.fetch_raw(args.latitude, args.longitude,
+                                args.forecast_days)
+    if args.save_json:
+        with open(args.save_json, "w") as fh:
+            json.dump(payload, fh, indent=2)
+    data = parse_payload(payload, args.latitude, args.longitude)
     print(f"  grid point: {data.latitude:.3f}, {data.longitude:.3f}  "
           f"elevation {data.elevation:g} m")
     print(f"  members: {data.n_members}  "

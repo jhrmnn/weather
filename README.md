@@ -62,13 +62,17 @@ Run `python meteogram.py --help` for all options (`--latitude`, `--longitude`,
 
 ## Automated deployment
 
-A single [GitHub Actions workflow](.github/workflows/pages.yml) builds the site
-and deploys it, in three jobs:
+A single [GitHub Actions workflow](.github/workflows/pages.yml) collects data,
+builds the site, and deploys it, in four jobs:
 
-* **build** — always runs. `python site/build.py` fetches fresh data, renders
-  the plot, and embeds it into a small static page
-  ([`site/template.html`](site/template.html)), then uploads the result as
-  artifacts.
+* **fetch** — checks out the [`data` branch](#raw-data-archive-data-branch) and
+  fetches a fresh raw API response **only if the latest stored data is over an
+  hour old**; otherwise it quits early. New data is committed and pushed to the
+  `data` branch (keyed so duplicates are skipped). See
+  [`data/collect.py`](data/collect.py).
+* **build** — checks out the `data` branch and renders the plot from the
+  **latest archived data** (no live fetching), embeds it into a small static
+  page ([`site/template.html`](site/template.html)), and uploads the artifacts.
 * **deploy-pages** — publishes to **GitHub Pages** with `actions/deploy-pages`,
   on the production triggers only: every **three hours**
   (`cron: "0 */3 * * *"`), on every **push to `main`**, and on demand via
@@ -77,6 +81,10 @@ and deploys it, in three jobs:
   Pages** as a *branch deployment*, so each PR gets its own dedicated preview at
   a stable per-branch alias (`https://<branch>.jhrmnn-weather.pages.dev`). The
   URL is posted as a comment on the PR and updated on every push.
+
+Splitting **fetch** from **build** means the slow, rate-limited API call is
+throttled to at most once an hour and the archived raw data is the single source
+of truth the site renders from.
 
 ### Enabling GitHub Pages
 
@@ -97,6 +105,27 @@ once; subsequent runs publish automatically.
 
 Forked-PR runs are skipped automatically, since GitHub doesn't expose secrets
 to them.
+
+## Raw data archive (`data` branch)
+
+The **fetch** job above builds up a historical archive of the **raw API
+responses** on a dedicated orphan branch called `data` (kept off `main`, so the
+code history stays clean). The **build** job renders the site from it.
+
+* [`data/collect.py`](data/collect.py) fetches the raw Open-Meteo response for
+  each configured location and stores it **verbatim** under
+  `<model>/<lat>_<lon>/<fetched-at>_<hash>.json`.
+* Files are **keyed by a content hash**, so an unchanged model run is never
+  archived twice — re-fetching the same data is a no-op.
+* Fetching is **throttled to once an hour**: `collect.py --max-age 3600` skips
+  the API call when the latest archived response (read from its filename
+  timestamp) is under an hour old, and otherwise **commits & pushes only when
+  there is genuinely new data**.
+* All fetching lives in `data/collect.py`; [`meteogram.py`](meteogram.py) only
+  parses and plots, and the `build` job renders from the archive.
+
+Browse it with `git fetch origin data && git switch data`, or add locations by
+extending `LOCATIONS` in `data/collect.py`.
 
 ## Data & licence
 
