@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ECMWF ENS 2 m Temperature Meteogram</title>
+  <style>
+    :root { color-scheme: light dark; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+        Helvetica, Arial, sans-serif;
+      line-height: 1.55;
+      color: #1b1b1b;
+      background: #f5f6f8;
+    }
+    @media (prefers-color-scheme: dark) {
+      body { color: #e6e6e6; background: #14161a; }
+      .card { background: #1e2127 !important; box-shadow: none !important; }
+      a { color: #6fb3ff; }
+    }
+    .wrap { max-width: 1180px; margin: 0 auto; padding: 2rem 1.25rem 3rem; }
+    header h1 { font-size: 1.6rem; margin: 0 0 .25rem; }
+    header p { margin: 0; color: #6a7077; }
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 1px 4px rgba(0,0,0,.08), 0 8px 24px rgba(0,0,0,.06);
+      padding: 1rem;
+      margin: 1.5rem 0;
+    }
+    .card img { width: 100%; height: auto; display: block; border-radius: 6px; }
+    .meta {
+      display: flex; flex-wrap: wrap; gap: .5rem 1.5rem;
+      font-size: .9rem; color: #6a7077; margin-top: .75rem;
+    }
+    footer { font-size: .85rem; color: #6a7077; margin-top: 2rem; }
+    footer a { color: inherit; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>ECMWF ENS 2 m Temperature Meteogram</h1>
+      <p>Berlin (52.55°N, 13.41°E) · ECMWF IFS 0.25° ensemble, model-native 3-hourly</p>
+    </header>
+
+    <div class="card">
+      <img src="meteogram.png" alt="ECMWF ENS 2 m temperature meteogram">
+      <div class="meta">
+        <span>Last updated: <strong>__UPDATED__</strong></span>
+        <span>Refreshes every 3 hours</span>
+      </div>
+    </div>
+
+    <footer>
+      <p>
+        Data from the
+        <a href="https://open-meteo.com/en/docs/ensemble-api">Open-Meteo Ensemble API</a>
+        (CC BY 4.0), based on the ECMWF IFS ensemble (ECMWF data, CC BY 4.0).
+        Source on <a href="https://github.com/jhrmnn/weather">GitHub</a>.
+      </p>
+    </footer>
+  </div>
+</body>
+</html>

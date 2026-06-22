@@ -60,6 +60,22 @@ Run `python meteogram.py --help` for all options (`--latitude`, `--longitude`,
 * The distribution is computed over all 51 members (control included), which is
   the ECMWF convention.
 
+## Automated GitHub Pages site
+
+A [GitHub Actions workflow](.github/workflows/pages.yml) regenerates the
+meteogram and publishes it to **GitHub Pages**. It runs:
+
+* every **three hours** (`cron: "0 */3 * * *"`),
+* on every **push to `main`**, and
+* on demand via **manual dispatch** (the *Run workflow* button).
+
+The workflow runs `python site/build.py`, which fetches fresh data, renders
+the plot, and embeds it into a small static page ([`site/template.html`](site/template.html))
+that is deployed with `actions/deploy-pages`.
+
+To enable it, set **Settings → Pages → Build and deployment → Source** to
+**GitHub Actions** once; subsequent runs publish automatically.
+
 ## Data & licence
 
 Forecast data from the [Open-Meteo Ensemble API](https://open-meteo.com/)
