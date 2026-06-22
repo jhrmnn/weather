@@ -1,6 +1,6 @@
 {
   "elevation": 54.0,
-  "generationtime_ms": 0.4909038543701172,
+  "generationtime_ms": 0.3968477249145508,
   "hourly": {
     "temperature_2m": [
       19.2,
@@ -4739,6 +4739,7 @@
   },
   "latitude": 52.5,
   "longitude": 13.5,
+  "model_run_time": "2026-06-22T12:00",
   "timezone": "GMT",
   "timezone_abbreviation": "GMT",
   "utc_offset_seconds": 0
