@@ -20,6 +20,11 @@ Box-and-whisker convention (matching ECMWF's own meteograms):
     * thick red line-> median track (50th percentile connected across time)
     * blue line     -> control forecast
 
+The box-and-whisker glyphs sit on the model-native 3-hourly steps, but the
+median and control *tracks* are first resampled onto a finer grid with monotone
+cubic Hermite (PCHIP) interpolation so the connecting curves read smoothly
+without overshooting the underlying 3-hourly values.
+
 Reference: https://confluence.ecmwf.int/display/FUG/Section+8.1.4+Meteograms
 """
 from __future__ import annotations
@@ -39,6 +44,12 @@ import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 
 N_PERTURBED = 50  # perturbed members; the control is the base series (member 0)
+
+# Smooth-line interpolation: the box-and-whisker glyphs stay on the model-native
+# 3-hourly steps, but the control and median *tracks* are drawn on a finer grid
+# so the connecting curves read smoothly. ``FINE_STEPS_PER_INTERVAL`` sub-samples
+# each 3-hourly interval this many times.
+FINE_STEPS_PER_INTERVAL = 12
 
 # ECMWF-style colours.
 CYAN = "#00FFFF"      # ensemble box fill
@@ -114,6 +125,67 @@ def parse_payload(
     )
 
 
+def _pchip_slopes(x: np.ndarray, y: np.ndarray) -> np.ndarray:
+    """Monotone (Fritsch-Carlson) cubic Hermite slopes at each node.
+
+    These are the derivatives that make a piecewise cubic Hermite interpolant
+    shape-preserving, i.e. it does not overshoot between data points -- the same
+    construction as ``scipy.interpolate.PchipInterpolator``.
+    """
+    h = np.diff(x)
+    delta = np.diff(y) / h
+    d = np.zeros_like(y)
+
+    # Interior nodes: weighted harmonic mean of neighbouring secant slopes,
+    # forced to zero wherever the data turns (sign change) or is flat.
+    pos = (delta[:-1] * delta[1:]) > 0  # same sign -> interior extremum-free
+    w1 = (2 * h[1:] + h[:-1])[pos]
+    w2 = (h[1:] + 2 * h[:-1])[pos]
+    d[1:-1][pos] = (w1 + w2) / (w1 / delta[:-1][pos] + w2 / delta[1:][pos])
+
+    # Endpoints: non-centred three-point formula, clamped to preserve shape.
+    d[0] = _pchip_end(delta[0], delta[1] if len(delta) > 1 else delta[0],
+                      h[0], h[1] if len(h) > 1 else h[0])
+    d[-1] = _pchip_end(delta[-1], delta[-2] if len(delta) > 1 else delta[-1],
+                       h[-1], h[-2] if len(h) > 1 else h[-1])
+    return d
+
+
+def _pchip_end(d0: float, d1: float, h0: float, h1: float) -> float:
+    """Shape-preserving one-sided endpoint slope for PCHIP."""
+    d = ((2 * h0 + h1) * d0 - h0 * d1) / (h0 + h1)
+    if d * d0 <= 0:
+        return 0.0
+    if d0 * d1 <= 0 and abs(d) > 3 * abs(d0):
+        return 3 * d0
+    return d
+
+
+def _pchip_interp(x: np.ndarray, y: np.ndarray, x_new: np.ndarray) -> np.ndarray:
+    """Evaluate a monotone cubic Hermite (PCHIP) interpolant of ``y`` at ``x_new``.
+
+    NaNs in ``y`` are skipped; if fewer than two valid points remain the input is
+    returned via linear interpolation as a degenerate fallback.
+    """
+    valid = np.isfinite(y)
+    if valid.sum() < 2:
+        return np.interp(x_new, x[valid], y[valid]) if valid.any() else \
+            np.full_like(x_new, np.nan)
+    xv, yv = x[valid], y[valid]
+    d = _pchip_slopes(xv, yv)
+
+    k = np.clip(np.searchsorted(xv, x_new, side="right") - 1, 0, len(xv) - 2)
+    h = xv[k + 1] - xv[k]
+    t = (x_new - xv[k]) / h
+    t2, t3 = t * t, t * t * t
+    h00 = 2 * t3 - 3 * t2 + 1
+    h10 = t3 - 2 * t2 + t
+    h01 = -2 * t3 + 3 * t2
+    h11 = t3 - t2
+    return (h00 * yv[k] + h10 * h * d[k]
+            + h01 * yv[k + 1] + h11 * h * d[k + 1])
+
+
 def _format_coords(lat: float, lon: float) -> str:
     ns = "N" if lat >= 0 else "S"
     ew = "E" if lon >= 0 else "W"
@@ -178,6 +250,12 @@ def plot(data: EnsembleData, output: str, station_name: str | None = None,
     wide = spacing * 0.62
     narrow = spacing * 0.30
 
+    # Finer grid for the smooth control/median tracks (boxes stay 3-hourly).
+    x_fine = np.linspace(x[0], x[-1],
+                         (len(x) - 1) * FINE_STEPS_PER_INTERVAL + 1)
+    p50_fine = _pchip_interp(x, p50, x_fine)
+    control_fine = _pchip_interp(x, data.control, x_fine)
+
     fig, ax = plt.subplots(figsize=(16, 5.6), dpi=140)
 
     # Whisker (min->max); the boxes drawn on top hide its central section.
@@ -191,11 +269,11 @@ def plot(data: EnsembleData, output: str, station_name: str | None = None,
     # Median.
     ax.hlines(p50, x - wide / 2, x + wide / 2, color="black", linewidth=0.9,
               zorder=5)
-    # Median tracking line (thick red) connecting the medians across time.
-    ax.plot(x, p50, color=MEDIAN_RED, linewidth=2.6, zorder=6,
+    # Median tracking line (thick red), cubic-Hermite-smoothed across time.
+    ax.plot(x_fine, p50_fine, color=MEDIAN_RED, linewidth=2.6, zorder=6,
             label="Median", solid_capstyle="round")
-    # Control forecast.
-    ax.plot(x, data.control, color=CONTROL_BLUE, linewidth=1.4, zorder=7,
+    # Control forecast, cubic-Hermite-smoothed.
+    ax.plot(x_fine, control_fine, color=CONTROL_BLUE, linewidth=1.4, zorder=7,
             label="Control forecast")
 
     # --- axes cosmetics -------------------------------------------------
