@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import hashlib
 import os
 import sys
 
@@ -49,8 +50,17 @@ def main() -> None:
     with open(os.path.join(here, "template.html")) as fh:
         template = fh.read()
 
+    # Cache-busting token derived from the image contents: the ``?v=`` query
+    # string changes only when the figure actually changes, so browsers fetch a
+    # fresh image instead of serving a stale cached ``meteogram.png`` while still
+    # caching an unchanged one. (GitHub Pages ignores custom cache headers, so a
+    # content-hashed URL is the portable fix.)
+    with open(image_path, "rb") as fh:
+        img_version = hashlib.sha256(fh.read()).hexdigest()[:12]
+
     updated = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     html = template.replace("__UPDATED__", updated)
+    html = html.replace("__IMG_VERSION__", img_version)
 
     with open(os.path.join(args.output_dir, "index.html"), "w") as fh:
         fh.write(html)
