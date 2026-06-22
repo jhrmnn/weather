@@ -17,6 +17,7 @@ Box-and-whisker convention (matching ECMWF's own meteograms):
     * narrow box    -> 10th-25th and 75th-90th percentiles
     * whisker line  -> minimum and maximum across the ensemble
     * horizontal bar-> median (50th percentile)
+    * thick red line-> median track (50th percentile connected across time)
     * blue line     -> control forecast
 
 Reference: https://confluence.ecmwf.int/display/FUG/Section+8.1.4+Meteograms
@@ -43,6 +44,7 @@ N_PERTURBED = 50  # perturbed members; the control is the base series (member 0)
 # ECMWF-style colours.
 CYAN = "#00FFFF"      # ensemble box fill
 CONTROL_BLUE = "#0000FF"  # control forecast line
+MEDIAN_RED = "#FF0000"   # median tracking line
 
 
 @dataclass
@@ -151,6 +153,9 @@ def _draw_legend_glyph(ax: plt.Axes) -> None:
     ax.bar(xc, levels["75%"] - levels["25%"], bottom=levels["25%"], width=2.0,
            color=CYAN, edgecolor="black", linewidth=0.7)
     ax.hlines(levels["median"], xc - 1.0, xc + 1.0, color="black", linewidth=1.1)
+    # Median tracking line key (thick red, drawn through the median level).
+    ax.plot([xc - 1.0, xc + 1.0], [levels["median"], levels["median"]],
+            color=MEDIAN_RED, linewidth=2.6, solid_capstyle="round")
     for label, y in levels.items():
         ax.text(1.7, y, label, va="center", ha="left", fontsize=6.5)
 
@@ -158,9 +163,14 @@ def _draw_legend_glyph(ax: plt.Axes) -> None:
     ax.plot([-1.2, 0.6], [-1.8, -1.8], color=CONTROL_BLUE, linewidth=1.6)
     ax.text(1.7, -1.8, "control", va="center", ha="left", fontsize=6.5,
             color=CONTROL_BLUE)
+    # Median tracking line key entry.
+    ax.plot([-1.2, 0.6], [-3.0, -3.0], color=MEDIAN_RED, linewidth=2.6,
+            solid_capstyle="round")
+    ax.text(1.7, -3.0, "median", va="center", ha="left", fontsize=6.5,
+            color=MEDIAN_RED)
 
     ax.set_xlim(-2.2, 5.0)
-    ax.set_ylim(-3.0, 9.2)
+    ax.set_ylim(-4.0, 9.2)
     ax.set_facecolor("white")
     ax.patch.set_alpha(0.92)
     for spine in ax.spines.values():
@@ -195,8 +205,11 @@ def plot(data: EnsembleData, output: str, station_name: str | None = None,
     # Median.
     ax.hlines(p50, x - wide / 2, x + wide / 2, color="black", linewidth=0.9,
               zorder=5)
+    # Median tracking line (thick red) connecting the medians across time.
+    ax.plot(x, p50, color=MEDIAN_RED, linewidth=2.6, zorder=6,
+            label="Median", solid_capstyle="round")
     # Control forecast.
-    ax.plot(x, data.control, color=CONTROL_BLUE, linewidth=1.4, zorder=6,
+    ax.plot(x, data.control, color=CONTROL_BLUE, linewidth=1.4, zorder=7,
             label="Control forecast")
 
     # --- axes cosmetics -------------------------------------------------
