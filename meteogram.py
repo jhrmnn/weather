@@ -29,13 +29,13 @@ import datetime as dt
 import json
 from dataclasses import dataclass
 
-import matplotlib
+import numpy as np
+import requests
 
-matplotlib.use("Agg")
-import matplotlib.dates as mdates  # noqa: E402
-import matplotlib.pyplot as plt  # noqa: E402
-import numpy as np  # noqa: E402
-import requests  # noqa: E402
+# matplotlib is imported lazily inside ``plot()`` so that data fetching and the
+# JSON export (used by the web site build) do not require it.
+
+PERCENTILE_LEVELS = [0, 10, 25, 50, 75, 90, 100]
 
 ENSEMBLE_URL = "https://ensemble-api.open-meteo.com/v1/ensemble"
 MODEL = "ecmwf_ifs025"
@@ -128,6 +128,49 @@ def fetch(
     )
 
 
+def percentiles(data: EnsembleData) -> dict[str, np.ndarray]:
+    """Ensemble percentiles at every time step.
+
+    Returns a dict with ``p_min, p10, p25, p50, p75, p90, p_max`` arrays, each
+    of shape ``(T,)``.  Used by both the matplotlib renderer and the JSON
+    export so the two stay numerically identical.
+    """
+    qs = np.nanpercentile(data.members, PERCENTILE_LEVELS, axis=0)
+    keys = ["p_min", "p10", "p25", "p50", "p75", "p90", "p_max"]
+    return dict(zip(keys, qs))
+
+
+def to_dict(
+    data: EnsembleData,
+    station_name: str | None = None,
+    station_height: float | None = None,
+) -> dict:
+    """Build a JSON-serialisable snapshot of the meteogram for web rendering."""
+
+    def clean(arr: np.ndarray) -> list:
+        # JSON has no NaN; emit ``null`` for missing values instead.
+        return [None if v is None or np.isnan(v) else float(v) for v in arr]
+
+    pct = percentiles(data)
+    times = data.times.astype("datetime64[s]").astype(dt.datetime)
+    return {
+        "times": [t.isoformat() for t in times],
+        "control": clean(data.control),
+        **{k: clean(v) for k, v in pct.items()},
+        "variable": data.variable,
+        "units": data.units,
+        "requested_lat": data.requested_lat,
+        "requested_lon": data.requested_lon,
+        "latitude": data.latitude,
+        "longitude": data.longitude,
+        "elevation": None if np.isnan(data.elevation) else float(data.elevation),
+        "init_time": data.init_time.isoformat(),
+        "n_members": data.n_members,
+        "station_name": station_name,
+        "station_height": station_height,
+    }
+
+
 def _format_coords(lat: float, lon: float) -> str:
     ns = "N" if lat >= 0 else "S"
     ew = "E" if lon >= 0 else "W"
@@ -183,9 +226,18 @@ def _draw_legend_glyph(ax: plt.Axes) -> None:
 def plot(data: EnsembleData, output: str, station_name: str | None = None,
          station_height: float | None = None) -> None:
     """Render the ECMWF-style box-and-whisker meteogram to ``output``."""
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.dates as mdates
+    import matplotlib.pyplot as plt
+
     # Percentiles across all members at every time step.
-    qs = np.nanpercentile(data.members, [0, 10, 25, 50, 75, 90, 100], axis=0)
-    p_min, p10, p25, p50, p75, p90, p_max = qs
+    pct = percentiles(data)
+    p_min, p10, p25, p50, p75, p90, p_max = (
+        pct["p_min"], pct["p10"], pct["p25"], pct["p50"],
+        pct["p75"], pct["p90"], pct["p_max"],
+    )
 
     x = mdates.date2num(data.times.astype("datetime64[s]").astype(dt.datetime))
     spacing = float(np.median(np.diff(x)))  # ~0.125 days (3 h)

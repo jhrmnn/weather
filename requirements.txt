@@ -1,3 +1,6 @@
+# Full requirements for the CLI (`python meteogram.py`), which renders a PNG.
+# The web site build only needs numpy + requests (see requirements-site.txt);
+# matplotlib is used solely for the optional PNG output.
 matplotlib>=3.7
 numpy>=1.24
 requests>=2.28

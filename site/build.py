@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import json
 import os
 import sys
 
@@ -29,10 +30,12 @@ def main() -> None:
     args = parser.parse_args()
 
     os.makedirs(args.output_dir, exist_ok=True)
-    image_path = os.path.join(args.output_dir, "meteogram.png")
+    data_path = os.path.join(args.output_dir, "data.json")
 
     data = meteogram.fetch(args.latitude, args.longitude, args.forecast_days)
-    meteogram.plot(data, image_path, station_name=args.name)
+    snapshot = meteogram.to_dict(data, station_name=args.name)
+    with open(data_path, "w") as fh:
+        json.dump(snapshot, fh, separators=(",", ":"))
 
     here = os.path.dirname(os.path.abspath(__file__))
     with open(os.path.join(here, "template.html")) as fh:
@@ -44,7 +47,7 @@ def main() -> None:
     with open(os.path.join(args.output_dir, "index.html"), "w") as fh:
         fh.write(html)
 
-    print(f"Built site in {args.output_dir} (image: {image_path})")
+    print(f"Built site in {args.output_dir} (data: {data_path})")
 
 
 if __name__ == "__main__":

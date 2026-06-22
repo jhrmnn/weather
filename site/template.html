@@ -30,7 +30,8 @@
       padding: 1rem;
       margin: 1.5rem 0;
     }
-    .card img { width: 100%; height: auto; display: block; border-radius: 6px; }
+    /* Responsive chart: tall enough to stay readable on phones, wider on desktop. */
+    #chart { width: 100%; height: 62vw; max-height: 560px; min-height: 360px; }
     .meta {
       display: flex; flex-wrap: wrap; gap: .5rem 1.5rem;
       font-size: .9rem; color: #6a7077; margin-top: .75rem;
@@ -43,12 +44,13 @@
   <div class="wrap">
     <header>
       <h1>ECMWF ENS 2 m Temperature Meteogram</h1>
-      <p>Berlin (52.55°N, 13.41°E) · ECMWF IFS 0.25° ensemble, model-native 3-hourly</p>
+      <p id="subtitle">Loading…</p>
     </header>
 
     <div class="card">
-      <img src="meteogram.png" alt="ECMWF ENS 2 m temperature meteogram">
+      <div id="chart"></div>
       <div class="meta">
+        <span>Forecast init: <strong id="init">–</strong></span>
         <span>Last updated: <strong>__UPDATED__</strong></span>
         <span>Refreshes every 3 hours</span>
       </div>
@@ -63,5 +65,145 @@
       </p>
     </footer>
   </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+  <script>
+  (function () {
+    var CYAN = "#00FFFF";              // ensemble box fill (ECMWF)
+    var dark = window.matchMedia &&
+      window.matchMedia("(prefers-color-scheme: dark)").matches;
+    var STROKE = dark ? "#cbd2da" : "#111111";
+    var TEXT   = dark ? "#e6e6e6" : "#1b1b1b";
+    var AXIS   = dark ? "#8b9099" : "#6a7077";
+    var GRID   = dark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.12)";
+    var RED    = dark ? "#ff5a5a" : "#FF0000";  // median track
+    var BLUE   = dark ? "#6fb3ff" : "#0000FF";  // control forecast
+
+    function fmtCoords(lat, lon) {
+      var ns = lat >= 0 ? "N" : "S", ew = lon >= 0 ? "E" : "W";
+      return Math.abs(lat).toFixed(2) + "°" + ns + " " +
+             Math.abs(lon).toFixed(2) + "°" + ew;
+    }
+    function f1(v) { return v == null ? "–" : v.toFixed(1); }
+
+    fetch("data.json").then(function (r) { return r.json(); }).then(function (D) {
+      var U = D.units || "°C";
+      var times = D.times.map(function (s) { return new Date(s).getTime(); });
+      var stepMs = times.length > 1 ? times[1] - times[0] : 3 * 3600 * 1000;
+
+      // Header / metadata.
+      var place = (D.station_name ? D.station_name + " · " : "") +
+        fmtCoords(D.requested_lat, D.requested_lon);
+      document.getElementById("subtitle").textContent =
+        place + " · ECMWF IFS 0.25° ensemble (" + D.n_members +
+        " members), model-native 3-hourly";
+      document.getElementById("init").textContent =
+        new Date(D.init_time).toUTCString().replace("GMT", "UTC");
+
+      // Box-and-whisker data: [t, min, p10, p25, p50, p75, p90, max].
+      var boxData = times.map(function (t, i) {
+        return [t, D.p_min[i], D.p10[i], D.p25[i], D.p50[i],
+                D.p75[i], D.p90[i], D.p_max[i]];
+      });
+      var medianLine  = times.map(function (t, i) { return [t, D.p50[i]]; });
+      var controlLine = times.map(function (t, i) { return [t, D.control[i]]; });
+
+      // y-range with a little padding, snapped to 2°.
+      var vals = [];
+      D.p_min.concat(D.p_max, D.control).forEach(function (v) {
+        if (v != null) vals.push(v);
+      });
+      var lo = Math.floor((Math.min.apply(null, vals) - 1) / 2) * 2;
+      var hi = Math.ceil((Math.max.apply(null, vals) + 1) / 2) * 2;
+
+      function renderBox(params, api) {
+        var t   = api.value(0);
+        var yPx = function (v) { return api.coord([t, v])[1]; };
+        var x   = api.coord([t, api.value(4)])[0];
+        var wPx = api.size([stepMs, 0])[0];
+        var wide = wPx * 0.62, narrow = wPx * 0.30;
+        var y = { min: yPx(api.value(1)), p10: yPx(api.value(2)),
+                  p25: yPx(api.value(3)), p50: yPx(api.value(4)),
+                  p75: yPx(api.value(5)), p90: yPx(api.value(6)),
+                  max: yPx(api.value(7)) };
+        return {
+          type: "group",
+          children: [
+            { type: "line", shape: { x1: x, y1: y.min, x2: x, y2: y.max },
+              style: { stroke: STROKE, lineWidth: 0.8 } },
+            { type: "rect",
+              shape: { x: x - narrow / 2, y: Math.min(y.p10, y.p90),
+                       width: narrow, height: Math.abs(y.p90 - y.p10) },
+              style: { fill: CYAN, stroke: STROKE, lineWidth: 0.6 } },
+            { type: "rect",
+              shape: { x: x - wide / 2, y: Math.min(y.p25, y.p75),
+                       width: wide, height: Math.abs(y.p75 - y.p25) },
+              style: { fill: CYAN, stroke: STROKE, lineWidth: 0.6 } },
+            { type: "line",
+              shape: { x1: x - wide / 2, y1: y.p50, x2: x + wide / 2, y2: y.p50 },
+              style: { stroke: STROKE, lineWidth: 1 } }
+          ]
+        };
+      }
+
+      var chart = echarts.init(document.getElementById("chart"), null,
+        { renderer: "svg" });
+      chart.setOption({
+        backgroundColor: "transparent",
+        textStyle: { color: TEXT },
+        animation: false,
+        grid: { left: 52, right: 16, top: 24, bottom: 64 },
+        tooltip: {
+          trigger: "axis",
+          axisPointer: { type: "line" },
+          formatter: function (ps) {
+            var i = ps[0].dataIndex;
+            var d = new Date(D.times[i]);
+            return "<b>" + d.toUTCString().replace("GMT", "UTC") + "</b><br>" +
+              "max " + f1(D.p_max[i]) + "<br>90% " + f1(D.p90[i]) +
+              "<br>75% " + f1(D.p75[i]) + "<br><b>median " + f1(D.p50[i]) +
+              "</b><br>25% " + f1(D.p25[i]) + "<br>10% " + f1(D.p10[i]) +
+              "<br>min " + f1(D.p_min[i]) + "<br>control " + f1(D.control[i]) +
+              " " + U;
+          }
+        },
+        xAxis: {
+          type: "time",
+          axisLine: { lineStyle: { color: AXIS } },
+          axisLabel: { color: AXIS, formatter: "{ee} {dd}" },
+          splitLine: { show: true, lineStyle: { color: GRID } }
+        },
+        yAxis: {
+          type: "value", min: lo, max: hi, interval: 6,
+          name: "2 m Temperature (" + U + ")",
+          nameLocation: "middle", nameGap: 36, nameTextStyle: { color: AXIS },
+          axisLabel: { color: AXIS },
+          splitLine: { lineStyle: { color: GRID } }
+        },
+        dataZoom: [
+          { type: "inside" },
+          { type: "slider", height: 18, bottom: 28 }
+        ],
+        series: [
+          { name: "ENS distribution", type: "custom",
+            renderItem: renderBox, data: boxData, encode: { x: 0, y: [1, 7] },
+            z: 2 },
+          { name: "Median", type: "line", data: medianLine, showSymbol: false,
+            lineStyle: { color: RED, width: 2.6 }, itemStyle: { color: RED },
+            z: 3 },
+          { name: "Control forecast", type: "line", data: controlLine,
+            showSymbol: false, lineStyle: { color: BLUE, width: 1.4 },
+            itemStyle: { color: BLUE }, z: 4 }
+        ]
+      });
+
+      window.addEventListener("resize", function () { chart.resize(); });
+    }).catch(function (e) {
+      document.getElementById("subtitle").textContent =
+        "Failed to load forecast data.";
+      console.error(e);
+    });
+  })();
+  </script>
 </body>
 </html>

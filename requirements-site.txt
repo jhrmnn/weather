@@ -1,0 +1,4 @@
+# Dependencies for the static site build (`python site/build.py`).
+# Rendering happens in the browser (ECharts), so matplotlib is not needed here.
+numpy>=1.24
+requests>=2.28

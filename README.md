@@ -65,10 +65,13 @@ Run `python meteogram.py --help` for all options (`--latitude`, `--longitude`,
 A single [GitHub Actions workflow](.github/workflows/pages.yml) builds the site
 and deploys it, in three jobs:
 
-* **build** — always runs. `python site/build.py` fetches fresh data, renders
-  the plot, and embeds it into a small static page
-  ([`site/template.html`](site/template.html)), then uploads the result as
-  artifacts.
+* **build** — always runs. `python site/build.py` fetches fresh data, computes
+  the ensemble percentiles, and writes them as a `data.json` snapshot alongside
+  the static page ([`site/template.html`](site/template.html)), then uploads the
+  result as artifacts. The page renders the meteogram **in the browser** with
+  [Apache ECharts](https://echarts.apache.org/) — an interactive,
+  mobile-friendly chart (touch pan/zoom, hover tooltips) rather than a static
+  image. The PNG renderer in `meteogram.py` remains available via the CLI.
 * **deploy-pages** — publishes to **GitHub Pages** with `actions/deploy-pages`,
   on the production triggers only: every **three hours**
   (`cron: "0 */3 * * *"`), on every **push to `main`**, and on demand via
