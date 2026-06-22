@@ -51,17 +51,9 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Skip fetching if the latest stored data (the data branch's last
-          # commit) is under an hour old.
-          last=$(git -C data-store log -1 --format=%ct)
-          age=$(( $(date -u +%s) - last ))
-          if [ "$age" -lt 3600 ]; then
-            echo "Latest data is ${age}s old (< 1h); skipping fetch."
-            exit 0
-          fi
-          echo "Latest data is ${age}s old; fetching."
-
-          python data/collect.py --data-dir data-store
+          # collect.py skips any location whose latest archived response (read
+          # from the filename timestamp) is under an hour old.
+          python data/collect.py --data-dir data-store --max-age 3600
 
           cd data-store
           git add -A

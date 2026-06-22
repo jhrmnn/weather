@@ -117,10 +117,12 @@ code history stays clean). The **build** job renders the site from it.
   `<model>/<lat>_<lon>/<fetched-at>_<hash>.json`.
 * Files are **keyed by a content hash**, so an unchanged model run is never
   archived twice — re-fetching the same data is a no-op.
-* Fetching is **throttled to once an hour**: the fetch job skips the API call
-  when the data branch's most recent commit is under an hour old, and otherwise
-  **commits & pushes only when there is genuinely new data**.
-* The branch is **created automatically** on the first run.
+* Fetching is **throttled to once an hour**: `collect.py --max-age 3600` skips
+  the API call when the latest archived response (read from its filename
+  timestamp) is under an hour old, and otherwise **commits & pushes only when
+  there is genuinely new data**.
+* All fetching lives in `data/collect.py`; [`meteogram.py`](meteogram.py) only
+  parses and plots, and the `build` job renders from the archive.
 
 Browse it with `git fetch origin data && git switch data`, or add locations by
 extending `LOCATIONS` in `data/collect.py`.
