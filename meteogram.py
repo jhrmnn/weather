@@ -111,22 +111,20 @@ def fetch_raw(
     return resp.json()
 
 
-def fetch(
-    latitude: float,
-    longitude: float,
-    forecast_days: int = 11,
+def parse_payload(
+    payload: dict,
+    requested_lat: float,
+    requested_lon: float,
     variable: str = "temperature_2m",
-    raw_out: str | None = None,
 ) -> EnsembleData:
-    """Fetch the ECMWF ensemble for ``variable`` at one point from Open-Meteo."""
+    """Parse a raw Open-Meteo response (live or archived) into ``EnsembleData``.
+
+    ``requested_lat``/``requested_lon`` are the coordinates that were asked for
+    (the payload only carries the snapped grid point), used for the title.
+    """
     member_vars = [variable] + [
         f"{variable}_member{n:02d}" for n in range(1, N_PERTURBED + 1)
     ]
-    payload = fetch_raw(latitude, longitude, forecast_days, variable)
-
-    if raw_out:
-        with open(raw_out, "w") as fh:
-            json.dump(payload, fh, indent=2)
 
     hourly = payload["hourly"]
     times = np.array(hourly["time"], dtype="datetime64[m]")
@@ -144,12 +142,29 @@ def fetch(
         members=members,
         latitude=payload["latitude"],
         longitude=payload["longitude"],
-        requested_lat=latitude,
-        requested_lon=longitude,
+        requested_lat=requested_lat,
+        requested_lon=requested_lon,
         elevation=payload.get("elevation", float("nan")),
         variable=variable,
         units=units,
     )
+
+
+def fetch(
+    latitude: float,
+    longitude: float,
+    forecast_days: int = 11,
+    variable: str = "temperature_2m",
+    raw_out: str | None = None,
+) -> EnsembleData:
+    """Fetch the ECMWF ensemble for ``variable`` at one point from Open-Meteo."""
+    payload = fetch_raw(latitude, longitude, forecast_days, variable)
+
+    if raw_out:
+        with open(raw_out, "w") as fh:
+            json.dump(payload, fh, indent=2)
+
+    return parse_payload(payload, latitude, longitude, variable)
 
 
 def _format_coords(lat: float, lon: float) -> str:

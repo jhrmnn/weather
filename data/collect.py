@@ -9,15 +9,18 @@ and push to the ``data`` branch only when there is something new.
 
 Layout::
 
-    <data-dir>/<model>/<lat>_<lon>/<reference-date>_<hash>.json
+    <data-dir>/<model>/<lat>_<lon>/<fetched-at>_<hash>.json
 
-The 12-character hash is a SHA-256 over the response with volatile metadata
+``<fetched-at>`` is the UTC collection time (``YYYYMMDDTHHMMSSZ``), so files
+sort chronologically and the most recent one is "the latest data". The
+12-character hash is a SHA-256 over the response with volatile metadata
 (``generationtime_ms``) stripped out, so byte-for-byte identical forecasts
 collapse to a single file regardless of when they were fetched.
 """
 from __future__ import annotations
 
 import argparse
+import datetime as dt
 import hashlib
 import json
 import os
@@ -73,12 +76,31 @@ def content_hash(payload: dict) -> str:
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:12]
 
 
-def reference_date(payload: dict) -> str:
-    """First forecast timestamp's date, used as a sortable filename prefix."""
-    times = payload.get("hourly", {}).get("time") or []
-    if times:
-        return str(times[0]).split("T")[0]
-    return "unknown"
+def location_dir(data_dir: str, loc: Location) -> str:
+    """Directory holding ``loc``'s archived responses."""
+    return os.path.join(
+        data_dir, meteogram.MODEL, f"{loc.latitude:g}_{loc.longitude:g}"
+    )
+
+
+def latest_file(data_dir: str, loc: Location) -> str | None:
+    """Path to the most recently collected response for ``loc`` (or ``None``)."""
+    d = location_dir(data_dir, loc)
+    if not os.path.isdir(d):
+        return None
+    files = sorted(f for f in os.listdir(d) if f.endswith(".json"))
+    return os.path.join(d, files[-1]) if files else None
+
+
+def load_latest(data_dir: str, loc: Location) -> dict:
+    """Load the most recently collected raw payload for ``loc``."""
+    path = latest_file(data_dir, loc)
+    if path is None:
+        raise FileNotFoundError(
+            f"no archived data for {loc.latitude}, {loc.longitude} in {data_dir}"
+        )
+    with open(path) as fh:
+        return json.load(fh)
 
 
 def collect_one(loc: Location, data_dir: str, forecast_days: int) -> str | None:
@@ -87,9 +109,7 @@ def collect_one(loc: Location, data_dir: str, forecast_days: int) -> str | None:
     payload = meteogram.fetch_raw(loc.latitude, loc.longitude, forecast_days)
     digest = content_hash(payload)
 
-    loc_dir = os.path.join(
-        data_dir, meteogram.MODEL, f"{loc.latitude:g}_{loc.longitude:g}"
-    )
+    loc_dir = location_dir(data_dir, loc)
     os.makedirs(loc_dir, exist_ok=True)
 
     # Dedup: a file already ending in this content hash means no new data.
@@ -97,7 +117,8 @@ def collect_one(loc: Location, data_dir: str, forecast_days: int) -> str | None:
         if existing.endswith(f"_{digest}.json"):
             return None
 
-    path = os.path.join(loc_dir, f"{reference_date(payload)}_{digest}.json")
+    stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    path = os.path.join(loc_dir, f"{stamp}_{digest}.json")
     with open(path, "w") as fh:
         json.dump(payload, fh, indent=2, sort_keys=True)
     return path

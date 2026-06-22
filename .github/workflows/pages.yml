@@ -14,11 +14,19 @@ permissions:
   contents: read
 
 jobs:
-  # Build the static site once; both deploy jobs consume the artifacts.
-  build:
+  # Fetch fresh raw data into the data branch, but only if what's already
+  # stored there is older than an hour. The data branch is an orphan archive
+  # kept off main; a commit is pushed only when there is genuinely new data.
+  fetch:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    # Serialise data-branch writes across overlapping workflow runs.
+    concurrency:
+      group: data-collect
+      cancel-in-progress: false
     steps:
-      - name: Checkout
+      - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Set up Python
@@ -30,8 +38,86 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Fetch new data if the latest is over an hour old
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Forked PRs get a read-only token, so they can't push the archive.
+          CAN_PUSH: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+        run: |
+          set -euo pipefail
+          remote="https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+
+          # Materialise the data branch in ./data-store, creating it as an
+          # orphan branch on the very first run.
+          mkdir data-store
+          (
+            cd data-store
+            git init -q
+            git remote add origin "$remote"
+            if git ls-remote --exit-code --heads origin data >/dev/null 2>&1; then
+              git fetch -q --depth=1 origin data
+              git checkout -q -b data FETCH_HEAD
+            else
+              echo "data branch does not exist yet; creating it."
+              git checkout -q --orphan data
+            fi
+          )
+
+          # Skip fetching if the latest stored data (the data branch's last
+          # commit) is under an hour old.
+          last=$(git -C data-store log -1 --format=%ct 2>/dev/null || echo 0)
+          age=$(( $(date -u +%s) - last ))
+          if [ "$last" -ne 0 ] && [ "$age" -lt 3600 ]; then
+            echo "Latest data is ${age}s old (< 1h); skipping fetch."
+            exit 0
+          fi
+          echo "Latest data is ${age}s old; fetching."
+
+          python data/collect.py --data-dir data-store
+
+          cd data-store
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No new data; nothing to commit."
+            exit 0
+          fi
+          if [ "$CAN_PUSH" != "true" ]; then
+            echo "Read-only token (forked PR); skipping push of new data."
+            exit 0
+          fi
+          git -c user.name="github-actions[bot]" \
+              -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              commit -q -m "data: archive new raw forecast snapshots ($(date -u +%Y-%m-%dT%H:%MZ))"
+          git push -q origin HEAD:data
+          echo "Pushed new data to the data branch."
+
+  # Build the static site from the latest archived data; both deploy jobs
+  # consume the artifacts. No live fetching happens here.
+  build:
+    needs: fetch
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # The data branch always exists by now (the fetch job creates it).
+      - name: Checkout data branch
+        uses: actions/checkout@v4
+        with:
+          ref: data
+          path: data-store
+
       - name: Build site
-        run: python site/build.py --output-dir _site
+        run: python site/build.py --output-dir _site --data-dir data-store
 
       # Tarball in the format actions/deploy-pages expects (for GitHub Pages).
       - name: Upload Pages artifact
