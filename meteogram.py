@@ -71,6 +71,7 @@ class EnsembleData:
     elevation: float
     variable: str
     units: str
+    run_time: dt.datetime | None = None  # model run, if known (see run_or_start)
 
     @property
     def control(self) -> np.ndarray:
@@ -78,9 +79,24 @@ class EnsembleData:
         return self.members[0]
 
     @property
-    def init_time(self) -> dt.datetime:
-        """Forecast initialisation time (first step)."""
+    def window_start(self) -> dt.datetime:
+        """Start of the returned forecast window (the first step).
+
+        For the Open-Meteo forecast/ensemble API this is always 00:00 UTC of
+        the current day, regardless of which model run produced the data, so it
+        is *not* the run time — see ``run_or_start``.
+        """
         return self.times[0].astype("datetime64[s]").astype(dt.datetime)
+
+    @property
+    def run_or_start(self) -> dt.datetime:
+        """The model run's initialisation time, falling back to the window start.
+
+        ``run_time`` is populated from the model metadata at fetch time; older
+        archived payloads (and ad-hoc parses) without it fall back to the
+        window start.
+        """
+        return self.run_time if self.run_time is not None else self.window_start
 
     @property
     def n_members(self) -> int:
@@ -97,6 +113,10 @@ def parse_payload(
 
     ``requested_lat``/``requested_lon`` are the coordinates that were asked for
     (the payload only carries the snapped grid point), used for the title.
+
+    The ``model_run_time`` stamp that ``collect.fetch_raw`` attaches (the run's
+    UTC initialisation time) is read into ``run_time`` when present; payloads
+    without it fall back to the window start for labelling.
     """
     member_vars = [variable] + [
         f"{variable}_member{n:02d}" for n in range(1, N_PERTURBED + 1)
@@ -104,6 +124,9 @@ def parse_payload(
 
     hourly = payload["hourly"]
     times = np.array(hourly["time"], dtype="datetime64[m]")
+
+    run_stamp = payload.get("model_run_time")
+    run_time = dt.datetime.fromisoformat(run_stamp) if run_stamp else None
 
     # Collect every member that the API actually returned, control first.
     rows = []
@@ -123,6 +146,7 @@ def parse_payload(
         elevation=payload.get("elevation", float("nan")),
         variable=variable,
         units=units,
+        run_time=run_time,
     )
 
 
@@ -246,7 +270,7 @@ def plot(data: EnsembleData, output: str, station_name: str | None = None,
         ax.text(float(np.mean(sel)), -0.075, label,
                 transform=ax.get_xaxis_transform(),
                 ha="center", va="top", fontsize=9, color="0.25")
-    ax.text(1.0, -0.075, str(data.init_time.year), transform=ax.transAxes,
+    ax.text(1.0, -0.075, str(data.window_start.year), transform=ax.transAxes,
             ha="right", va="top", fontsize=9, color="0.25")
 
     # Titles.
@@ -254,7 +278,7 @@ def plot(data: EnsembleData, output: str, station_name: str | None = None,
     where = f"{station_name + ' ' if station_name else ''}{coords}"
     if station_height is not None:
         where += f" ({station_height:g} m)"
-    init = data.init_time.strftime("%A %d %B %Y %H UTC")
+    init = data.run_or_start.strftime("%A %d %B %Y %H UTC")
     fig.suptitle("ECMWF ENS Meteogram – 2 m Temperature", x=0.5, y=0.98,
                  fontsize=14, ha="center")
     ax.set_title(

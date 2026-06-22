@@ -66,10 +66,10 @@ A single [GitHub Actions workflow](.github/workflows/pages.yml) collects data,
 builds the site, and deploys it, in four jobs:
 
 * **fetch** — checks out the [`data` branch](#raw-data-archive-data-branch) and
-  fetches a fresh raw API response **only if the latest stored data is over an
-  hour old**; otherwise it quits early. New data is committed and pushed to the
-  `data` branch (keyed so duplicates are skipped). See
-  [`data/collect.py`](data/collect.py).
+  fetches a fresh raw API response **only when the model's latest run isn't
+  already archived** (it checks the run metadata first); otherwise it quits
+  early. New data is committed and pushed to the `data` branch (keyed by run, so
+  each run is stored once). See [`data/collect.py`](data/collect.py).
 * **build** — checks out the `data` branch and renders the plot from the
   **latest archived data** (no live fetching), embeds it into a small static
   page ([`site/template.html`](site/template.html)), and uploads the artifacts.
@@ -113,14 +113,16 @@ responses** on a dedicated orphan branch called `data` (kept off `main`, so the
 code history stays clean). The **build** job renders the site from it.
 
 * [`data/collect.py`](data/collect.py) fetches the raw Open-Meteo response for
-  each configured location and stores it **verbatim** under
-  `<model>/<lat>_<lon>/<fetched-at>_<hash>.json`.
-* Files are **keyed by a content hash**, so an unchanged model run is never
-  archived twice — re-fetching the same data is a no-op.
-* Fetching is **throttled to once an hour**: `collect.py --max-age 3600` skips
-  the API call when the latest archived response (read from its filename
-  timestamp) is under an hour old, and otherwise **commits & pushes only when
-  there is genuinely new data**.
+  each configured location and stores it under
+  `<model>/<lat>_<lon>/<run-init-time>.json` — the API payload as-is, plus a
+  `model_run_time` stamp (the run's UTC initialisation time, read from the
+  model's static metadata, since the payload itself carries no run timestamp).
+* Files are **keyed by the run's initialisation time**, so each model run is
+  archived exactly once.
+* Fetching is **gated on the run metadata**: `collect.py` reads the model's
+  latest run timestamp first and only downloads the ensemble when that run isn't
+  already archived, so it **commits & pushes only when there is genuinely new
+  data** — and never hits the heavy ensemble endpoint otherwise.
 * All fetching lives in `data/collect.py`; [`meteogram.py`](meteogram.py) only
   parses and plots, and the `build` job renders from the archive.
 
