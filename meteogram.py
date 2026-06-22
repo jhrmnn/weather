@@ -21,9 +21,9 @@ Box-and-whisker convention (matching ECMWF's own meteograms):
     * blue line     -> control forecast
 
 The box-and-whisker glyphs sit on the model-native 3-hourly steps, but the
-median and control *tracks* are first resampled onto a finer grid with monotone
-cubic Hermite (PCHIP) interpolation so the connecting curves read smoothly
-without overshooting the underlying 3-hourly values.
+median and control *tracks* are first resampled onto a finer grid with a
+minimum-curvature natural cubic spline so the connecting curves read smoothly,
+without the kinks of a shape-preserving interpolant.
 
 Reference: https://confluence.ecmwf.int/display/FUG/Section+8.1.4+Meteograms
 """
@@ -42,7 +42,7 @@ matplotlib.use("Agg")
 import matplotlib.dates as mdates  # noqa: E402
 import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
-from scipy.interpolate import PchipInterpolator  # noqa: E402
+from scipy.interpolate import CubicSpline  # noqa: E402
 
 N_PERTURBED = 50  # perturbed members; the control is the base series (member 0)
 
@@ -191,12 +191,13 @@ def plot(data: EnsembleData, output: str, station_name: str | None = None,
     narrow = spacing * 0.30
 
     # Finer grid for the smooth control/median tracks (boxes stay 3-hourly).
-    # Monotone cubic Hermite (PCHIP) is shape-preserving, so the curves don't
-    # overshoot the underlying 3-hourly values.
+    # A natural cubic spline (zero second derivative at the ends) uniquely
+    # minimises total curvature, giving the smoothest C2 tracks through the
+    # 3-hourly values.
     x_fine = np.linspace(x[0], x[-1],
                          (len(x) - 1) * FINE_STEPS_PER_INTERVAL + 1)
-    p50_fine = PchipInterpolator(x, p50)(x_fine)
-    control_fine = PchipInterpolator(x, data.control)(x_fine)
+    p50_fine = CubicSpline(x, p50, bc_type="natural")(x_fine)
+    control_fine = CubicSpline(x, data.control, bc_type="natural")(x_fine)
 
     fig, ax = plt.subplots(figsize=(16, 5.6), dpi=140)
 
