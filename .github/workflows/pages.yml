@@ -14,9 +14,10 @@ permissions:
   contents: read
 
 jobs:
-  # Fetch fresh raw data into the data branch, but only if what's already
-  # stored there is older than an hour. A commit is pushed only when there is
-  # genuinely new data. Skipped on forked PRs, whose read-only token can't push.
+  # Fetch the latest model run into the data branch, but only when it isn't
+  # already archived (gated on the model's published run metadata). A commit is
+  # pushed only when there is genuinely new data. Skipped on forked PRs, whose
+  # read-only token can't push.
   fetch:
     if: >-
       github.event_name != 'pull_request' ||
@@ -47,13 +48,13 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Fetch new data if the latest is over an hour old
+      - name: Fetch the latest run if it isn't already archived
         run: |
           set -euo pipefail
 
-          # collect.py skips any location whose latest archived response (read
-          # from the filename timestamp) is under an hour old.
-          python data/collect.py --data-dir data-store --max-age 3600
+          # collect.py reads the model run metadata first and downloads the
+          # ensemble only when the latest run isn't already in the archive.
+          python data/collect.py --data-dir data-store
 
           cd data-store
           git add -A
