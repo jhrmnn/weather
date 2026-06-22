@@ -46,11 +46,14 @@ jobs:
           name: site
           path: _site
 
-  # Publish to GitHub Pages on the production triggers (push to main, schedule,
-  # manual dispatch) — never on PRs.
+  # Publish to GitHub Pages on the production triggers: push to main, schedule,
+  # and manual dispatch.
   deploy-pages:
     needs: build
-    if: github.event_name != 'pull_request'
+    if: >-
+      github.event_name == 'push' ||
+      github.event_name == 'schedule' ||
+      github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
       pages: write
