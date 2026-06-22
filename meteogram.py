@@ -76,6 +76,41 @@ class EnsembleData:
         return self.members.shape[0]
 
 
+def _build_params(
+    latitude: float,
+    longitude: float,
+    forecast_days: int,
+    variable: str,
+) -> dict:
+    """Assemble the Open-Meteo Ensemble API query parameters."""
+    return {
+        "latitude": latitude,
+        "longitude": longitude,
+        "hourly": variable,
+        "models": MODEL,
+        "temporal_resolution": "native",  # 3-hourly for ECMWF IFS ENS
+        "forecast_days": forecast_days,
+        "timezone": "GMT",
+    }
+
+
+def fetch_raw(
+    latitude: float,
+    longitude: float,
+    forecast_days: int = 11,
+    variable: str = "temperature_2m",
+) -> dict:
+    """Return the unmodified Open-Meteo Ensemble API response as a dict.
+
+    This is the raw payload exactly as the API serves it, suitable for
+    archiving. Use :func:`fetch` to get a parsed :class:`EnsembleData`.
+    """
+    params = _build_params(latitude, longitude, forecast_days, variable)
+    resp = requests.get(ENSEMBLE_URL, params=params, timeout=60)
+    resp.raise_for_status()
+    return resp.json()
+
+
 def fetch(
     latitude: float,
     longitude: float,
@@ -87,18 +122,7 @@ def fetch(
     member_vars = [variable] + [
         f"{variable}_member{n:02d}" for n in range(1, N_PERTURBED + 1)
     ]
-    params = {
-        "latitude": latitude,
-        "longitude": longitude,
-        "hourly": variable,
-        "models": MODEL,
-        "temporal_resolution": "native",  # 3-hourly for ECMWF IFS ENS
-        "forecast_days": forecast_days,
-        "timezone": "GMT",
-    }
-    resp = requests.get(ENSEMBLE_URL, params=params, timeout=60)
-    resp.raise_for_status()
-    payload = resp.json()
+    payload = fetch_raw(latitude, longitude, forecast_days, variable)
 
     if raw_out:
         with open(raw_out, "w") as fh:

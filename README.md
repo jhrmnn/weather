@@ -98,6 +98,24 @@ once; subsequent runs publish automatically.
 Forked-PR runs are skipped automatically, since GitHub doesn't expose secrets
 to them.
 
+## Raw data archive (`data` branch)
+
+A separate [data-collection workflow](.github/workflows/data.yml) builds up a
+historical archive of the **raw API responses** on a dedicated orphan branch
+called `data` (kept off `main`, so the code history stays clean).
+
+* [`data/collect.py`](data/collect.py) fetches the raw Open-Meteo response for
+  each configured location and stores it **verbatim** under
+  `<model>/<lat>_<lon>/<reference-date>_<hash>.json`.
+* Files are **keyed by a content hash**, so an unchanged model run is never
+  archived twice — re-fetching the same data is a no-op.
+* The workflow runs every six hours (and on demand). It checks out the `data`
+  branch (creating it on the first run), collects, and **commits & pushes only
+  when there is genuinely new data**.
+
+Browse it with `git fetch origin data && git switch data`, or add locations by
+extending `LOCATIONS` in `data/collect.py`.
+
 ## Data & licence
 
 Forecast data from the [Open-Meteo Ensemble API](https://open-meteo.com/)
