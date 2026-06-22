@@ -42,6 +42,7 @@ matplotlib.use("Agg")
 import matplotlib.dates as mdates  # noqa: E402
 import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
+from scipy.interpolate import PchipInterpolator  # noqa: E402
 
 N_PERTURBED = 50  # perturbed members; the control is the base series (member 0)
 
@@ -125,65 +126,19 @@ def parse_payload(
     )
 
 
-def _pchip_slopes(x: np.ndarray, y: np.ndarray) -> np.ndarray:
-    """Monotone (Fritsch-Carlson) cubic Hermite slopes at each node.
-
-    These are the derivatives that make a piecewise cubic Hermite interpolant
-    shape-preserving, i.e. it does not overshoot between data points -- the same
-    construction as ``scipy.interpolate.PchipInterpolator``.
-    """
-    h = np.diff(x)
-    delta = np.diff(y) / h
-    d = np.zeros_like(y)
-
-    # Interior nodes: weighted harmonic mean of neighbouring secant slopes,
-    # forced to zero wherever the data turns (sign change) or is flat.
-    pos = (delta[:-1] * delta[1:]) > 0  # same sign -> interior extremum-free
-    w1 = (2 * h[1:] + h[:-1])[pos]
-    w2 = (h[1:] + 2 * h[:-1])[pos]
-    d[1:-1][pos] = (w1 + w2) / (w1 / delta[:-1][pos] + w2 / delta[1:][pos])
-
-    # Endpoints: non-centred three-point formula, clamped to preserve shape.
-    d[0] = _pchip_end(delta[0], delta[1] if len(delta) > 1 else delta[0],
-                      h[0], h[1] if len(h) > 1 else h[0])
-    d[-1] = _pchip_end(delta[-1], delta[-2] if len(delta) > 1 else delta[-1],
-                       h[-1], h[-2] if len(h) > 1 else h[-1])
-    return d
-
-
-def _pchip_end(d0: float, d1: float, h0: float, h1: float) -> float:
-    """Shape-preserving one-sided endpoint slope for PCHIP."""
-    d = ((2 * h0 + h1) * d0 - h0 * d1) / (h0 + h1)
-    if d * d0 <= 0:
-        return 0.0
-    if d0 * d1 <= 0 and abs(d) > 3 * abs(d0):
-        return 3 * d0
-    return d
-
-
 def _pchip_interp(x: np.ndarray, y: np.ndarray, x_new: np.ndarray) -> np.ndarray:
     """Evaluate a monotone cubic Hermite (PCHIP) interpolant of ``y`` at ``x_new``.
 
-    NaNs in ``y`` are skipped; if fewer than two valid points remain the input is
-    returned via linear interpolation as a degenerate fallback.
+    Uses ``scipy.interpolate.PchipInterpolator`` (Fritsch-Carlson), which is
+    shape-preserving and therefore does not overshoot between data points. NaNs
+    in ``y`` are skipped; if fewer than two valid points remain it falls back to
+    linear interpolation over whatever is available.
     """
     valid = np.isfinite(y)
     if valid.sum() < 2:
-        return np.interp(x_new, x[valid], y[valid]) if valid.any() else \
-            np.full_like(x_new, np.nan)
-    xv, yv = x[valid], y[valid]
-    d = _pchip_slopes(xv, yv)
-
-    k = np.clip(np.searchsorted(xv, x_new, side="right") - 1, 0, len(xv) - 2)
-    h = xv[k + 1] - xv[k]
-    t = (x_new - xv[k]) / h
-    t2, t3 = t * t, t * t * t
-    h00 = 2 * t3 - 3 * t2 + 1
-    h10 = t3 - 2 * t2 + t
-    h01 = -2 * t3 + 3 * t2
-    h11 = t3 - t2
-    return (h00 * yv[k] + h10 * h * d[k]
-            + h01 * yv[k + 1] + h11 * h * d[k + 1])
+        return (np.interp(x_new, x[valid], y[valid]) if valid.any()
+                else np.full_like(x_new, np.nan))
+    return PchipInterpolator(x[valid], y[valid])(x_new)
 
 
 def _format_coords(lat: float, lon: float) -> str:
