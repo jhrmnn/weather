@@ -60,21 +60,43 @@ Run `python meteogram.py --help` for all options (`--latitude`, `--longitude`,
 * The distribution is computed over all 51 members (control included), which is
   the ECMWF convention.
 
-## Automated GitHub Pages site
+## Automated deployment
 
-A [GitHub Actions workflow](.github/workflows/pages.yml) regenerates the
-meteogram and publishes it to **GitHub Pages**. It runs:
+A single [GitHub Actions workflow](.github/workflows/pages.yml) builds the site
+and deploys it, in three jobs:
 
-* every **three hours** (`cron: "0 */3 * * *"`),
-* on every **push to `main`**, and
-* on demand via **manual dispatch** (the *Run workflow* button).
+* **build** — always runs. `python site/build.py` fetches fresh data, renders
+  the plot, and embeds it into a small static page
+  ([`site/template.html`](site/template.html)), then uploads the result as
+  artifacts.
+* **deploy-pages** — publishes to **GitHub Pages** with `actions/deploy-pages`,
+  on the production triggers only: every **three hours**
+  (`cron: "0 */3 * * *"`), on every **push to `main`**, and on demand via
+  **manual dispatch** (the *Run workflow* button).
+* **deploy-cloudflare** — on every **pull request**, deploys to **Cloudflare
+  Pages** as a *branch deployment*, so each PR gets its own dedicated preview at
+  a stable per-branch alias (`https://<branch>.jhrmnn-weather.pages.dev`). The
+  URL is posted as a comment on the PR and updated on every push.
 
-The workflow runs `python site/build.py`, which fetches fresh data, renders
-the plot, and embeds it into a small static page ([`site/template.html`](site/template.html))
-that is deployed with `actions/deploy-pages`.
+### Enabling GitHub Pages
 
-To enable it, set **Settings → Pages → Build and deployment → Source** to
-**GitHub Actions** once; subsequent runs publish automatically.
+Set **Settings → Pages → Build and deployment → Source** to **GitHub Actions**
+once; subsequent runs publish automatically.
+
+### Enabling Cloudflare previews
+
+1. Create a **Cloudflare Pages** project (Workers & Pages → Create → Pages →
+   *Direct Upload*). The project name is hardcoded as `jhrmnn-weather` in the
+   `pages deploy` command in `pages.yml`; change it there if you use a
+   different name.
+2. Add two **repository secrets** (Settings → Secrets and variables → Actions):
+   * `CLOUDFLARE_API_TOKEN` — a token with the *Cloudflare Pages → Edit*
+     permission.
+   * `CLOUDFLARE_ACCOUNT_ID` — your account ID (Workers & Pages → right
+     sidebar).
+
+Forked-PR runs are skipped automatically, since GitHub doesn't expose secrets
+to them.
 
 ## Data & licence
 

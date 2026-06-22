@@ -1,4 +1,4 @@
-name: Publish meteogram to GitHub Pages
+name: Build and deploy meteogram site
 
 on:
   schedule:
@@ -6,20 +6,15 @@ on:
     - cron: "0 */3 * * *"
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
-# Allow the workflow to deploy to GitHub Pages.
 permissions:
   contents: read
-  pages: write
-  id-token: write
-
-# Only one Pages deployment at a time; let a running one finish.
-concurrency:
-  group: pages
-  cancel-in-progress: false
 
 jobs:
+  # Build the static site once; both deploy jobs consume the artifacts.
   build:
     runs-on: ubuntu-latest
     steps:
@@ -38,14 +33,35 @@ jobs:
       - name: Build site
         run: python site/build.py --output-dir _site
 
+      # Tarball in the format actions/deploy-pages expects (for GitHub Pages).
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: _site
 
-  deploy:
+      # Plain copy of the files for the Cloudflare deploy.
+      - name: Upload site artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: site
+          path: _site
+
+  # Publish to GitHub Pages on the production triggers: push to main, schedule,
+  # and manual dispatch.
+  deploy-pages:
     needs: build
+    if: >-
+      github.event_name == 'push' ||
+      github.event_name == 'schedule' ||
+      github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    # Only one Pages deployment at a time; let a running one finish.
+    concurrency:
+      group: pages
+      cancel-in-progress: false
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -53,3 +69,68 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+  # Publish a per-PR branch (preview) deployment to Cloudflare Pages.
+  deploy-cloudflare:
+    needs: build
+    # Secrets aren't exposed to forked-PR runs, so skip them to avoid a
+    # guaranteed failure. Same-repo branch PRs deploy as normal.
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    # Cancel superseded runs for the same PR so the latest push wins.
+    concurrency:
+      group: preview-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    steps:
+      - name: Download built site
+        uses: actions/download-artifact@v4
+        with:
+          name: site
+          path: _site
+
+      - name: Deploy to Cloudflare Pages (branch deployment)
+        id: deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: >-
+            pages deploy _site
+            --project-name=jhrmnn-weather
+            --branch=${{ github.head_ref }}
+
+      - name: Comment preview URL on the PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Prefer the stable per-branch alias; fall back to the per-deploy URL.
+            const alias = "${{ steps.deploy.outputs.pages-deployment-alias-url }}";
+            const deployment = "${{ steps.deploy.outputs.deployment-url }}";
+            const primary = alias || deployment;
+            if (!primary) return;
+            const marker = "<!-- cloudflare-preview -->";
+            let body = `${marker}\n🌥️ **Cloudflare Pages preview** for ` +
+              `\`${{ github.head_ref }}\`:\n\n${primary}`;
+            if (alias && deployment && alias !== deployment) {
+              body += `\n\n<sub>This deploy: ${deployment}</sub>`;
+            }
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const { data: comments } = await github.rest.issues.listComments({
+              owner, repo, issue_number,
+            });
+            const existing = comments.find((c) => c.body?.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner, repo, comment_id: existing.id, body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner, repo, issue_number, body,
+              });
+            }
