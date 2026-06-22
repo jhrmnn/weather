@@ -39,6 +39,10 @@ MODEL = "ecmwf_ifs025"
 # Open-Meteo's own ``hourly.time`` strings (UTC, e.g. ``2026-06-22T12:00``).
 RUN_TIME_FORMAT = "%Y-%m-%dT%H:%M"
 
+# How many times to re-fetch the data when a new run lands mid-fetch (see
+# ``fetch_raw``); a tiny window, so one retry almost always suffices.
+RUN_FETCH_RETRIES = 3
+
 # Fields that change on every request and must not affect the dedup key.
 VOLATILE_KEYS = {"generationtime_ms"}
 
@@ -106,6 +110,14 @@ def fetch_raw(
     :func:`latest_run_time`) so downstream plotting can label the forecast by
     its actual run rather than the window start. Because the stamp changes with
     each new run, it folds naturally into the dedup hash.
+
+    The run stamp and the data come from two separate endpoints, so a new run
+    landing between the two requests could mislabel the data. To avoid that, the
+    data fetch is *bracketed* by two run reads: if the latest run is unchanged
+    across the bracket, it provably did not change while the data was in flight,
+    so the data belongs to that run. If a run lands mid-flight the reads differ
+    and we retry; the rare case where retries are exhausted self-heals on the
+    next collection cycle.
     """
     params = {
         "latitude": latitude,
@@ -116,10 +128,15 @@ def fetch_raw(
         "forecast_days": forecast_days,
         "timezone": "GMT",
     }
-    resp = requests.get(ENSEMBLE_URL, params=params, timeout=60)
-    resp.raise_for_status()
-    payload = resp.json()
-    payload["model_run_time"] = latest_run_time().strftime(RUN_TIME_FORMAT)
+    for _ in range(RUN_FETCH_RETRIES):
+        run_before = latest_run_time()
+        resp = requests.get(ENSEMBLE_URL, params=params, timeout=60)
+        resp.raise_for_status()
+        payload = resp.json()
+        run_after = latest_run_time()
+        if run_before == run_after:
+            break
+    payload["model_run_time"] = run_after.strftime(RUN_TIME_FORMAT)
     return payload
 
 
