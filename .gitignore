@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Raw API responses
+*.json
+
+# Meteograms generated at the repo root (the tracked example lives in examples/)
+/*.png
