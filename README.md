@@ -87,9 +87,9 @@ on the PR and updated on every push.
 To enable it:
 
 1. Create a **Cloudflare Pages** project (Workers & Pages → Create → Pages →
-   *Direct Upload*). Note its **project name** and set
-   `CLOUDFLARE_PROJECT_NAME` at the top of `preview.yml` to match (default:
-   `weather`).
+   *Direct Upload*). The project name is hardcoded as `jhrmnn-weather` in
+   `CLOUDFLARE_PROJECT_NAME` at the top of `preview.yml`; change it there if you
+   use a different name.
 2. Add two **repository secrets** (Settings → Secrets and variables → Actions):
    * `CLOUDFLARE_API_TOKEN` — a token with the *Cloudflare Pages → Edit*
      permission.

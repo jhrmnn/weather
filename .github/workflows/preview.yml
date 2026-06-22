@@ -17,7 +17,7 @@ permissions:
 
 env:
   # Cloudflare Pages project name (Workers & Pages → your project → Settings).
-  CLOUDFLARE_PROJECT_NAME: weather
+  CLOUDFLARE_PROJECT_NAME: jhrmnn-weather
 
 jobs:
   deploy-preview:
