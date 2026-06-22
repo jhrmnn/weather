@@ -126,21 +126,6 @@ def parse_payload(
     )
 
 
-def _pchip_interp(x: np.ndarray, y: np.ndarray, x_new: np.ndarray) -> np.ndarray:
-    """Evaluate a monotone cubic Hermite (PCHIP) interpolant of ``y`` at ``x_new``.
-
-    Uses ``scipy.interpolate.PchipInterpolator`` (Fritsch-Carlson), which is
-    shape-preserving and therefore does not overshoot between data points. NaNs
-    in ``y`` are skipped; if fewer than two valid points remain it falls back to
-    linear interpolation over whatever is available.
-    """
-    valid = np.isfinite(y)
-    if valid.sum() < 2:
-        return (np.interp(x_new, x[valid], y[valid]) if valid.any()
-                else np.full_like(x_new, np.nan))
-    return PchipInterpolator(x[valid], y[valid])(x_new)
-
-
 def _format_coords(lat: float, lon: float) -> str:
     ns = "N" if lat >= 0 else "S"
     ew = "E" if lon >= 0 else "W"
@@ -206,10 +191,12 @@ def plot(data: EnsembleData, output: str, station_name: str | None = None,
     narrow = spacing * 0.30
 
     # Finer grid for the smooth control/median tracks (boxes stay 3-hourly).
+    # Monotone cubic Hermite (PCHIP) is shape-preserving, so the curves don't
+    # overshoot the underlying 3-hourly values.
     x_fine = np.linspace(x[0], x[-1],
                          (len(x) - 1) * FINE_STEPS_PER_INTERVAL + 1)
-    p50_fine = _pchip_interp(x, p50, x_fine)
-    control_fine = _pchip_interp(x, data.control, x_fine)
+    p50_fine = PchipInterpolator(x, p50)(x_fine)
+    control_fine = PchipInterpolator(x, data.control)(x_fine)
 
     fig, ax = plt.subplots(figsize=(16, 5.6), dpi=140)
 
