@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Collect raw Open-Meteo ensemble responses into a deduplicated archive.
 
-Each fetched API response is stored *verbatim* (the raw JSON) under the data
-directory, keyed so that re-fetching an unchanged model run does not create a
-duplicate. A new file therefore appears only when the API returns genuinely
-new data (typically a fresh model run) — which is exactly what lets CI commit
-and push to the ``data`` branch only when there is something new.
+Each fetched API response is stored under the data directory (the raw JSON,
+plus a single added ``model_run_time`` stamp — see :func:`fetch_raw`), keyed so
+that re-fetching an unchanged model run does not create a duplicate. A new file
+therefore appears only when the API returns genuinely new data (typically a
+fresh model run) — which is exactly what lets CI commit and push to the
+``data`` branch only when there is something new.
 
 Layout::
 
@@ -29,7 +30,14 @@ from dataclasses import dataclass
 import requests
 
 ENSEMBLE_URL = "https://ensemble-api.open-meteo.com/v1/ensemble"
+# Per-model static metadata (run timestamps etc.); the forecast payload itself
+# carries no run time, so the real initialisation time is read from here.
+META_URL = "https://api.open-meteo.com/data/{model}/static/meta.json"
 MODEL = "ecmwf_ifs025"
+
+# Time format used for the model-run stamp attached to each payload; matches
+# Open-Meteo's own ``hourly.time`` strings (UTC, e.g. ``2026-06-22T12:00``).
+RUN_TIME_FORMAT = "%Y-%m-%dT%H:%M"
 
 # Fields that change on every request and must not affect the dedup key.
 VOLATILE_KEYS = {"generationtime_ms"}
@@ -43,9 +51,10 @@ README = """\
 This orphan branch is an append-only archive of **raw Open-Meteo Ensemble API
 responses**, collected automatically by the `fetch` job of the site workflow.
 
-Each file is the unmodified API payload. Files are keyed by content hash so an
-unchanged model run is never stored twice; a new file (and a new commit) only
-appears when the API returns genuinely new data.
+Each file is the API payload, plus an added `model_run_time` stamp (the run's
+UTC initialisation time). Files are keyed by content hash so an unchanged model
+run is never stored twice; a new file (and a new commit) only appears when the
+API returns genuinely new data.
 
 ```
 <model>/<lat>_<lon>/<fetched-at>_<hash>.json
@@ -69,13 +78,35 @@ LOCATIONS = [
 ]
 
 
+def latest_run_time(model: str = MODEL) -> dt.datetime:
+    """Initialisation time (UTC) of the model's latest available run.
+
+    The Ensemble API response carries no run timestamp — its first step is just
+    the start of the returned window (always today 00:00 UTC), the *same* value
+    no matter which 00/06/12/18 UTC cycle actually produced the data. The real
+    run time lives in the model's static metadata, so a forecast can be labelled
+    by the run that produced it rather than by the window start.
+    """
+    resp = requests.get(META_URL.format(model=model), timeout=60)
+    resp.raise_for_status()
+    ts = resp.json()["last_run_initialisation_time"]
+    return dt.datetime.fromtimestamp(ts, dt.timezone.utc)
+
+
 def fetch_raw(
     latitude: float,
     longitude: float,
     forecast_days: int = 11,
     variable: str = "temperature_2m",
 ) -> dict:
-    """Return the unmodified Open-Meteo Ensemble API response as a dict."""
+    """Return the Open-Meteo Ensemble API response as a dict.
+
+    The payload is the API response verbatim, plus a single added
+    ``model_run_time`` key (the latest run's UTC initialisation time, from
+    :func:`latest_run_time`) so downstream plotting can label the forecast by
+    its actual run rather than the window start. Because the stamp changes with
+    each new run, it folds naturally into the dedup hash.
+    """
     params = {
         "latitude": latitude,
         "longitude": longitude,
@@ -87,7 +118,9 @@ def fetch_raw(
     }
     resp = requests.get(ENSEMBLE_URL, params=params, timeout=60)
     resp.raise_for_status()
-    return resp.json()
+    payload = resp.json()
+    payload["model_run_time"] = latest_run_time().strftime(RUN_TIME_FORMAT)
+    return payload
 
 
 def content_hash(payload: dict) -> str:

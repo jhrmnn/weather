@@ -113,8 +113,10 @@ responses** on a dedicated orphan branch called `data` (kept off `main`, so the
 code history stays clean). The **build** job renders the site from it.
 
 * [`data/collect.py`](data/collect.py) fetches the raw Open-Meteo response for
-  each configured location and stores it **verbatim** under
-  `<model>/<lat>_<lon>/<fetched-at>_<hash>.json`.
+  each configured location and stores it under
+  `<model>/<lat>_<lon>/<fetched-at>_<hash>.json` — the API payload as-is, plus a
+  `model_run_time` stamp (the run's UTC initialisation time, read from the
+  model's static metadata, since the payload itself carries no run timestamp).
 * Files are **keyed by a content hash**, so an unchanged model run is never
   archived twice — re-fetching the same data is a no-op.
 * Fetching is **throttled to once an hour**: `collect.py --max-age 3600` skips
