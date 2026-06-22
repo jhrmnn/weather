@@ -62,7 +62,7 @@ Run `python meteogram.py --help` for all options (`--latitude`, `--longitude`,
 
 ## Automated deployment
 
-A single [GitHub Actions workflow](.github/workflows/deploy.yml) builds the site
+A single [GitHub Actions workflow](.github/workflows/pages.yml) builds the site
 and deploys it, in three jobs:
 
 * **build** — always runs. `python site/build.py` fetches fresh data, renders
@@ -87,7 +87,7 @@ once; subsequent runs publish automatically.
 
 1. Create a **Cloudflare Pages** project (Workers & Pages → Create → Pages →
    *Direct Upload*). The project name is hardcoded as `jhrmnn-weather` in the
-   `pages deploy` command in `deploy.yml`; change it there if you use a
+   `pages deploy` command in `pages.yml`; change it there if you use a
    different name.
 2. Add two **repository secrets** (Settings → Secrets and variables → Actions):
    * `CLOUDFLARE_API_TOKEN` — a token with the *Cloudflare Pages → Edit*
