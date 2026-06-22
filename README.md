@@ -76,6 +76,29 @@ that is deployed with `actions/deploy-pages`.
 To enable it, set **Settings → Pages → Build and deployment → Source** to
 **GitHub Actions** once; subsequent runs publish automatically.
 
+## Per-PR Cloudflare Pages previews
+
+A second [workflow](.github/workflows/preview.yml) builds the site on every
+**pull request** and deploys it to **Cloudflare Pages** as a *branch
+deployment*, so each PR gets its own dedicated preview URL
+(`https://<branch>.<project>.pages.dev`). The preview URL is posted as a comment
+on the PR and updated on every push.
+
+To enable it:
+
+1. Create a **Cloudflare Pages** project (Workers & Pages → Create → Pages →
+   *Direct Upload*). Note its **project name** and set
+   `CLOUDFLARE_PROJECT_NAME` at the top of `preview.yml` to match (default:
+   `weather`).
+2. Add two **repository secrets** (Settings → Secrets and variables → Actions):
+   * `CLOUDFLARE_API_TOKEN` — a token with the *Cloudflare Pages → Edit*
+     permission.
+   * `CLOUDFLARE_ACCOUNT_ID` — your account ID (Workers & Pages → right
+     sidebar).
+
+Forked-PR runs are skipped automatically, since GitHub doesn't expose secrets
+to them.
+
 ## Data & licence
 
 Forecast data from the [Open-Meteo Ensemble API](https://open-meteo.com/)
