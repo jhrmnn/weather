@@ -14,10 +14,11 @@ permissions:
   contents: read
 
 jobs:
-  # Fetch the latest model run into the data branch, but only when it isn't
-  # already archived (gated on the model's published run metadata). A commit is
-  # pushed only when there is genuinely new data. Skipped on forked PRs, whose
-  # read-only token can't push.
+  # Fetch the latest model run into the data branch, throttled to at most one
+  # fetch an hour: the gate step below skips the work when this workflow last
+  # *fetched* (not counting throttled runs) under an hour ago — manual dispatch
+  # always fetches. A commit is pushed only when the forecast content is
+  # genuinely new. Skipped on forked PRs, whose read-only token can't push.
   fetch:
     if: >-
       github.event_name != 'pull_request' ||
@@ -25,35 +26,96 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      actions: read  # gate step lists this workflow's prior runs
     # Serialise data-branch writes across overlapping workflow runs.
     concurrency:
       group: data-collect
       cancel-in-progress: false
     steps:
+      # Throttle gate: fetch only when this workflow last *fetched* over an hour
+      # ago, so a burst of triggers (e.g. many pushes to a PR) fetches at most
+      # once an hour. We walk prior runs newest-first and gate on the most recent
+      # one whose fetch step actually ran — runs the gate itself skipped don't
+      # count, so a long burst of skipped runs can't keep deferring the next
+      # fetch. The run history is GitHub's own, so the gate needs no committed or
+      # cached state. Manual dispatch always fetches.
+      - name: Decide whether to fetch
+        id: gate
+        uses: actions/github-script@v7
+        with:
+          script: |
+            if (context.eventName === 'workflow_dispatch') {
+              core.info('Manual dispatch: fetching.');
+              core.setOutput('fetch', 'true');
+              return;
+            }
+            const HOUR = 60 * 60 * 1000;
+            const now = Date.now();
+            const FETCH_STEP = "Fetch the latest run if it isn't already archived";
+            const { data } = await github.rest.actions.listWorkflowRuns({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'pages.yml',
+              per_page: 30,
+            });
+            const prior = data.workflow_runs
+              .filter((r) => r.id !== context.runId && r.run_started_at &&
+                Date.parse(r.run_started_at) < now)
+              .sort((a, b) =>
+                Date.parse(b.run_started_at) - Date.parse(a.run_started_at));
+            let lastFetch = null;
+            for (const run of prior) {
+              const { data: jobsData } =
+                await github.rest.actions.listJobsForWorkflowRun({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  run_id: run.id,
+                });
+              const job = jobsData.jobs.find((j) => j.name === 'fetch');
+              const step = job && job.steps &&
+                job.steps.find((s) => s.name === FETCH_STEP);
+              // 'success'/'failure' = the fetch step ran; 'skipped' = throttled.
+              if (step && (step.conclusion === 'success' ||
+                           step.conclusion === 'failure')) {
+                lastFetch = Date.parse(run.run_started_at);
+                break;
+              }
+            }
+            const should = !lastFetch || (now - lastFetch) >= HOUR;
+            core.info(lastFetch
+              ? `Last fetch started ${Math.round((now - lastFetch) / 60000)} min ago; fetch=${should}.`
+              : 'No prior fetch found; fetch=true.');
+            core.setOutput('fetch', should ? 'true' : 'false');
+
       - name: Checkout code
+        if: steps.gate.outputs.fetch == 'true'
         uses: actions/checkout@v4
 
       - name: Checkout data branch
+        if: steps.gate.outputs.fetch == 'true'
         uses: actions/checkout@v4
         with:
           ref: data
           path: data-store
 
       - name: Set up Python
+        if: steps.gate.outputs.fetch == 'true'
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: pip
 
       - name: Install dependencies
+        if: steps.gate.outputs.fetch == 'true'
         run: pip install -r requirements.txt
 
       - name: Fetch the latest run if it isn't already archived
+        if: steps.gate.outputs.fetch == 'true'
         run: |
           set -euo pipefail
 
-          # collect.py reads the model run metadata first and downloads the
-          # ensemble only when the latest run isn't already in the archive.
+          # collect.py downloads the ensemble and archives a forecast only when
+          # its content is new, so a commit appears only when data changes.
           python data/collect.py --data-dir data-store
 
           cd data-store
