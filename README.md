@@ -55,12 +55,16 @@ python meteogram.py
 python meteogram.py --latitude 48.21 --longitude 16.37 --name Vienna \
     --output vienna.png
 
+# Render the figure in Czech (labels and date names); English is the default
+python meteogram.py --lang cs --output vienna_cs.png
+
 # Keep the raw API response for inspection / offline re-plotting
 python meteogram.py --save-json response.json
 ```
 
 Run `python meteogram.py --help` for all options (`--latitude`, `--longitude`,
-`--name`, `--station-height`, `--forecast-days`, `--output`, `--save-json`).
+`--name`, `--station-height`, `--forecast-days`, `--output`, `--lang`,
+`--save-json`).
 
 ## Notes on fidelity vs. the operational product
 
@@ -85,9 +89,14 @@ builds the site, and deploys it, in four jobs:
   already archived** (it checks the run metadata first); otherwise it quits
   early. New data is committed and pushed to the `data` branch (keyed by run, so
   each run is stored once). See [`data/collect.py`](data/collect.py).
-* **build** — checks out the `data` branch and renders the plot from the
-  **latest archived data** (no live fetching), embeds it into a small static
-  page ([`site/template.html`](site/template.html)), and uploads the artifacts.
+* **build** — checks out the `data` branch and renders the plots from the
+  **latest archived data** (no live fetching) in **both English and Czech**,
+  embedding them into a small **bilingual** static site
+  ([`site/template.html`](site/template.html)), and uploads the artifacts.
+  English is served as `index.html` (the site default) and Czech as `cs.html`;
+  each page links to the other, and each language gets its own figures
+  (`meteogram.<lang>.png`, `evolution.<lang>.png`) with localised labels,
+  titles, and date names.
 * **deploy-pages** — publishes to **GitHub Pages** with `actions/deploy-pages`,
   on the production triggers only: every **three hours**
   (`cron: "0 */3 * * *"`), on every **push to `main`**, and on demand via

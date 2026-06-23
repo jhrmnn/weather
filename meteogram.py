@@ -41,6 +41,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.dates as mdates  # noqa: E402
 import matplotlib.pyplot as plt  # noqa: E402
+import matplotlib.ticker as mticker  # noqa: E402
 import numpy as np  # noqa: E402
 from scipy.interpolate import CubicSpline  # noqa: E402
 
@@ -56,6 +57,128 @@ FINE_STEPS_PER_INTERVAL = 12
 BOX_GREY = "#D9D9D9"  # ensemble box fill (light neutral grey)
 CONTROL_BLUE = "#0000FF"  # control forecast line
 MEDIAN_RED = "#FF0000"   # median tracking line
+
+# --- Internationalisation -------------------------------------------------
+# Both figures can be rendered in English ("en") or Czech ("cs"). All
+# user-visible strings, plus locale-dependent date names, live here so the two
+# language versions stay in lock-step. Dates are formatted from these tables
+# rather than via ``strftime``/locale, which keeps output identical regardless
+# of the host's installed locales.
+DEFAULT_LANG = "en"
+
+_DAY_ABBR = {
+    "en": ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+    "cs": ["Po", "Út", "St", "Čt", "Pá", "So", "Ne"],
+}
+_DAY_FULL = {
+    "en": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday",
+           "Saturday", "Sunday"],
+    "cs": ["pondělí", "úterý", "středa", "čtvrtek", "pátek", "sobota",
+           "neděle"],
+}
+_MONTH_ABBR = {
+    "en": ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+           "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
+    "cs": ["led", "úno", "bře", "dub", "kvě", "čvn",
+           "čvc", "srp", "zář", "říj", "lis", "pro"],
+}
+# Czech month names take the genitive in date phrases ("23. června").
+_MONTH_FULL = {
+    "en": ["January", "February", "March", "April", "May", "June", "July",
+           "August", "September", "October", "November", "December"],
+    "cs": ["ledna", "února", "března", "dubna", "května", "června",
+           "července", "srpna", "září", "října", "listopadu", "prosince"],
+}
+
+STRINGS = {
+    "en": {
+        "meteogram_suptitle": "ECMWF ENS Meteogram – 2 m Temperature",
+        "evolution_suptitle": "ECMWF ENS Median Evolution – 2 m Temperature",
+        "ylabel": "2 m Temperature ({units})",
+        "legend_median": "Median",
+        "legend_control": "Control forecast",
+        "legend_latest": "latest run",
+        "glyph_max": "max",
+        "glyph_min": "min",
+        "glyph_median": "median",
+        "glyph_control": "control",
+        "colorbar": "Forecast run (initialisation, UTC)",
+        "footer": "Data: Open-Meteo Ensemble API (CC BY 4.0) – ECMWF IFS "
+                  "ensemble",
+        "meteogram_line1": "{where}  ·  ECMWF IFS 0.25° ensemble "
+                           "({n} members), model-native 3-hourly",
+        "meteogram_line2": "Control Forecast and ENS Distribution – {init}",
+        "evolution_line1": "{where}  ·  ECMWF IFS 0.25° ensemble median "
+                           "(50th percentile) per model run, model-native "
+                           "3-hourly",
+        "evolution_line2": "How the median forecast for each time shifted "
+                           "across {runs} – {span}",
+    },
+    "cs": {
+        "meteogram_suptitle": "Meteogram ECMWF ENS – teplota ve 2 m",
+        "evolution_suptitle": "Vývoj mediánu ECMWF ENS – teplota ve 2 m",
+        "ylabel": "Teplota ve 2 m ({units})",
+        "legend_median": "Medián",
+        "legend_control": "Kontrolní předpověď",
+        "legend_latest": "poslední běh",
+        "glyph_max": "max",
+        "glyph_min": "min",
+        "glyph_median": "medián",
+        "glyph_control": "kontrolní",
+        "colorbar": "Běh předpovědi (inicializace, UTC)",
+        "footer": "Data: Open-Meteo Ensemble API (CC BY 4.0) – soubor "
+                  "ECMWF IFS",
+        "meteogram_line1": "{where}  ·  soubor ECMWF IFS 0.25° "
+                           "({n} členů), nativní 3hodinové rozlišení modelu",
+        "meteogram_line2": "Kontrolní předpověď a rozdělení ENS – {init}",
+        "evolution_line1": "{where}  ·  medián souboru ECMWF IFS 0.25° "
+                           "(50. percentil) podle běhu modelu, nativní "
+                           "3hodinové rozlišení modelu",
+        "evolution_line2": "Jak se medián předpovědi pro každý čas posouval "
+                           "během {runs} – {span}",
+    },
+}
+
+
+def _tr(lang: str, key: str) -> str:
+    """Look up a translated string, falling back to the default language."""
+    return STRINGS.get(lang, STRINGS[DEFAULT_LANG]).get(
+        key, STRINGS[DEFAULT_LANG][key])
+
+
+def _runs_phrase(n: int, lang: str) -> str:
+    """Localise a ``<count> run(s)`` phrase, including Czech plural forms."""
+    if lang == "cs":
+        if n == 1:
+            return f"{n} běh"
+        if 2 <= n <= 4:
+            return f"{n} běhy"
+        return f"{n} běhů"
+    return f"{n} run" if n == 1 else f"{n} runs"
+
+
+def _fmt_day_tick(d: dt.datetime, lang: str) -> str:
+    """X-axis day tick, e.g. ``Mon23`` / ``Po23``."""
+    return f"{_DAY_ABBR[lang][d.weekday()]}{d.day:02d}"
+
+
+def _fmt_init(d: dt.datetime, lang: str) -> str:
+    """Long run-initialisation stamp for figure subtitles."""
+    if lang == "cs":
+        return (f"{_DAY_FULL['cs'][d.weekday()]} {d.day}. "
+                f"{_MONTH_FULL['cs'][d.month - 1]} {d.year} "
+                f"{d.hour:02d} UTC")
+    return (f"{_DAY_FULL['en'][d.weekday()]} {d.day:02d} "
+            f"{_MONTH_FULL['en'][d.month - 1]} {d.year} {d.hour:02d} UTC")
+
+
+def _fmt_span(d: dt.datetime, lang: str) -> str:
+    """Short run stamp used at each end of the evolution time span."""
+    if lang == "cs":
+        return (f"{_DAY_ABBR['cs'][d.weekday()]} {d.day}. "
+                f"{_MONTH_ABBR['cs'][d.month - 1]} {d.hour:02d} UTC")
+    return (f"{_DAY_ABBR['en'][d.weekday()]} {d.day:02d} "
+            f"{_MONTH_ABBR['en'][d.month - 1]} {d.hour:02d} UTC")
 
 
 @dataclass
@@ -156,9 +279,11 @@ def _format_coords(lat: float, lon: float) -> str:
     return f"{abs(lat):.2f}°{ns} {abs(lon):.2f}°{ew}"
 
 
-def _draw_legend_glyph(ax: plt.Axes) -> None:
+def _draw_legend_glyph(ax: plt.Axes, lang: str = DEFAULT_LANG) -> None:
     """Draw a small schematic box-and-whisker key inside ``ax``."""
-    # Schematic percentile levels (arbitrary, evenly readable spacing).
+    # Schematic percentile levels (arbitrary, evenly readable spacing). The
+    # percentile keys double as their own labels; the named levels are
+    # translated below.
     levels = {
         "max": 8.0,
         "90%": 6.6,
@@ -167,6 +292,11 @@ def _draw_legend_glyph(ax: plt.Axes) -> None:
         "25%": 2.8,
         "10%": 1.4,
         "min": 0.0,
+    }
+    label_for = {
+        "max": _tr(lang, "glyph_max"),
+        "median": _tr(lang, "glyph_median"),
+        "min": _tr(lang, "glyph_min"),
     }
     xc = 0.0
     ax.vlines(xc, levels["min"], levels["max"], color="black", linewidth=0.9)
@@ -178,18 +308,19 @@ def _draw_legend_glyph(ax: plt.Axes) -> None:
     # Median tracking line key (thick red, drawn through the median level).
     ax.plot([xc - 1.0, xc + 1.0], [levels["median"], levels["median"]],
             color=MEDIAN_RED, linewidth=2.6, solid_capstyle="round")
-    for label, y in levels.items():
-        ax.text(1.7, y, label, va="center", ha="left", fontsize=6.5)
+    for key, y in levels.items():
+        ax.text(1.7, y, label_for.get(key, key), va="center", ha="left",
+                fontsize=6.5)
 
     # Control forecast key.
     ax.plot([-1.2, 0.6], [-1.8, -1.8], color=CONTROL_BLUE, linewidth=1.6)
-    ax.text(1.7, -1.8, "control", va="center", ha="left", fontsize=6.5,
-            color=CONTROL_BLUE)
+    ax.text(1.7, -1.8, _tr(lang, "glyph_control"), va="center", ha="left",
+            fontsize=6.5, color=CONTROL_BLUE)
     # Median tracking line key entry.
     ax.plot([-1.2, 0.6], [-3.0, -3.0], color=MEDIAN_RED, linewidth=2.6,
             solid_capstyle="round")
-    ax.text(1.7, -3.0, "median", va="center", ha="left", fontsize=6.5,
-            color=MEDIAN_RED)
+    ax.text(1.7, -3.0, _tr(lang, "glyph_median"), va="center", ha="left",
+            fontsize=6.5, color=MEDIAN_RED)
 
     ax.set_xlim(-2.2, 5.0)
     ax.set_ylim(-4.0, 9.2)
@@ -203,8 +334,12 @@ def _draw_legend_glyph(ax: plt.Axes) -> None:
 
 
 def plot(data: EnsembleData, output: str, station_name: str | None = None,
-         station_height: float | None = None) -> None:
-    """Render the ECMWF-style box-and-whisker meteogram to ``output``."""
+         station_height: float | None = None,
+         lang: str = DEFAULT_LANG) -> None:
+    """Render the ECMWF-style box-and-whisker meteogram to ``output``.
+
+    ``lang`` selects the language of all labels and date names ("en" or "cs").
+    """
     # Percentiles across all members at every time step.
     qs = np.nanpercentile(data.members, [0, 10, 25, 50, 75, 90, 100], axis=0)
     p_min, p10, p25, p50, p75, p90, p_max = qs
@@ -238,16 +373,18 @@ def plot(data: EnsembleData, output: str, station_name: str | None = None,
               zorder=5)
     # Median tracking line (thick red), cubic-Hermite-smoothed across time.
     ax.plot(x_fine, p50_fine, color=MEDIAN_RED, linewidth=2.6, zorder=6,
-            label="Median", solid_capstyle="round")
+            label=_tr(lang, "legend_median"), solid_capstyle="round")
     # Control forecast, cubic-Hermite-smoothed.
     ax.plot(x_fine, control_fine, color=CONTROL_BLUE, linewidth=1.4, zorder=7,
-            label="Control forecast")
+            label=_tr(lang, "legend_control"))
 
     # --- axes cosmetics -------------------------------------------------
     ax.set_xlim(x[0] - spacing, x[-1] + spacing)
     ax.xaxis_date()
     ax.xaxis.set_major_locator(mdates.DayLocator())
-    ax.xaxis.set_major_formatter(mdates.DateFormatter("%a%d"))
+    ax.xaxis.set_major_formatter(
+        mticker.FuncFormatter(lambda v, _pos: _fmt_day_tick(
+            mdates.num2date(v), lang)))
     ax.tick_params(axis="x", length=0)
     plt.setp(ax.get_xticklabels(), ha="center")
 
@@ -260,13 +397,13 @@ def plot(data: EnsembleData, output: str, station_name: str | None = None,
     ax.grid(True, which="major", axis="both", linestyle=(0, (3, 3)),
             color="0.65", linewidth=0.6)
     ax.set_axisbelow(True)
-    ax.set_ylabel(f"2 m Temperature ({data.units})")
+    ax.set_ylabel(_tr(lang, "ylabel").format(units=data.units))
 
     # Month labels beneath the day ticks.
     months = data.times.astype("datetime64[M]")
     for m in np.unique(months):
         sel = x[months == m]
-        label = m.astype(dt.date).strftime("%b")
+        label = _MONTH_ABBR[lang][m.astype(dt.date).month - 1]
         ax.text(float(np.mean(sel)), -0.075, label,
                 transform=ax.get_xaxis_transform(),
                 ha="center", va="top", fontsize=9, color="0.25")
@@ -278,24 +415,21 @@ def plot(data: EnsembleData, output: str, station_name: str | None = None,
     where = f"{station_name + ' ' if station_name else ''}{coords}"
     if station_height is not None:
         where += f" ({station_height:g} m)"
-    init = data.run_or_start.strftime("%A %d %B %Y %H UTC")
-    fig.suptitle("ECMWF ENS Meteogram – 2 m Temperature", x=0.5, y=0.98,
+    init = _fmt_init(data.run_or_start, lang)
+    fig.suptitle(_tr(lang, "meteogram_suptitle"), x=0.5, y=0.98,
                  fontsize=14, ha="center")
-    ax.set_title(
-        f"{where}  ·  ECMWF IFS 0.25° ensemble "
-        f"({data.n_members} members), model-native 3-hourly\n"
-        f"Control Forecast and ENS Distribution – {init}",
-        fontsize=9.5,
-    )
+    line1 = _tr(lang, "meteogram_line1").format(where=where,
+                                                n=data.n_members)
+    line2 = _tr(lang, "meteogram_line2").format(init=init)
+    ax.set_title(f"{line1}\n{line2}", fontsize=9.5)
 
     ax.legend(loc="upper right", fontsize=8, framealpha=0.92)
 
     # Schematic box-and-whisker key (upper-left, usually empty early in run).
     key = ax.inset_axes([0.012, 0.58, 0.085, 0.40])
-    _draw_legend_glyph(key)
+    _draw_legend_glyph(key, lang)
 
-    fig.text(0.005, 0.005,
-             "Data: Open-Meteo Ensemble API (CC BY 4.0) – ECMWF IFS ensemble",
+    fig.text(0.005, 0.005, _tr(lang, "footer"),
              fontsize=7, color="0.5", ha="left", va="bottom")
 
     fig.tight_layout(rect=(0, 0.02, 1, 0.96))
@@ -317,7 +451,8 @@ def _smooth_track(x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]
 
 def plot_median_evolution(runs: list[EnsembleData], output: str,
                           station_name: str | None = None,
-                          station_height: float | None = None) -> None:
+                          station_height: float | None = None,
+                          lang: str = DEFAULT_LANG) -> None:
     """Plot how the ensemble median for each time evolved across model runs.
 
     ``runs`` is a list of archived ensembles, oldest first. Each run's median
@@ -356,7 +491,7 @@ def plot_median_evolution(runs: list[EnsembleData], output: str,
                 alpha=0.65 + 0.35 * recency,
                 zorder=3 + i,
                 solid_capstyle="round",
-                label="latest run" if is_newest else None)
+                label=_tr(lang, "legend_latest") if is_newest else None)
 
     # --- axes cosmetics -------------------------------------------------
     x_lo = min(float(x[0]) for x in all_x)
@@ -365,7 +500,9 @@ def plot_median_evolution(runs: list[EnsembleData], output: str,
     ax.set_xlim(x_lo - spacing, x_hi + spacing)
     ax.xaxis_date()
     ax.xaxis.set_major_locator(mdates.DayLocator())
-    ax.xaxis.set_major_formatter(mdates.DateFormatter("%a%d"))
+    ax.xaxis.set_major_formatter(
+        mticker.FuncFormatter(lambda v, _pos: _fmt_day_tick(
+            mdates.num2date(v), lang)))
     ax.tick_params(axis="x", length=0)
     plt.setp(ax.get_xticklabels(), ha="center")
 
@@ -378,7 +515,7 @@ def plot_median_evolution(runs: list[EnsembleData], output: str,
     ax.grid(True, which="major", axis="both", linestyle=(0, (3, 3)),
             color="0.65", linewidth=0.6)
     ax.set_axisbelow(True)
-    ax.set_ylabel(f"2 m Temperature ({units})")
+    ax.set_ylabel(_tr(lang, "ylabel").format(units=units))
 
     # Month labels + year beneath the day ticks.
     months = np.arange(np.datetime64(mdates.num2date(x_lo).date(), "M"),
@@ -387,7 +524,7 @@ def plot_median_evolution(runs: list[EnsembleData], output: str,
         m0 = mdates.date2num(m.astype("datetime64[D]").astype(dt.date))
         m1 = mdates.date2num((m + 1).astype("datetime64[D]").astype(dt.date))
         centre = min(max((m0 + m1) / 2, x_lo), x_hi)
-        ax.text(centre, -0.075, m.astype(dt.date).strftime("%b"),
+        ax.text(centre, -0.075, _MONTH_ABBR[lang][m.astype(dt.date).month - 1],
                 transform=ax.get_xaxis_transform(),
                 ha="center", va="top", fontsize=9, color="0.25")
     ax.text(1.0, -0.075, str(mdates.num2date(x_hi).year),
@@ -401,7 +538,7 @@ def plot_median_evolution(runs: list[EnsembleData], output: str,
         loc = mdates.AutoDateLocator()
         cbar.ax.yaxis.set_major_locator(loc)
         cbar.ax.yaxis.set_major_formatter(mdates.ConciseDateFormatter(loc))
-        cbar.set_label("Forecast run (initialisation, UTC)", fontsize=8)
+        cbar.set_label(_tr(lang, "colorbar"), fontsize=8)
         cbar.ax.tick_params(labelsize=7)
 
     ax.legend(loc="upper right", fontsize=8, framealpha=0.92)
@@ -411,20 +548,16 @@ def plot_median_evolution(runs: list[EnsembleData], output: str,
     where = f"{station_name + ' ' if station_name else ''}{coords}"
     if station_height is not None:
         where += f" ({station_height:g} m)"
-    span = (f"{inits[0].strftime('%a %d %b %H UTC')} – "
-            f"{inits[-1].strftime('%a %d %b %H UTC')}")
-    fig.suptitle("ECMWF ENS Median Evolution – 2 m Temperature", x=0.5, y=0.98,
+    span = (f"{_fmt_span(inits[0], lang)} – "
+            f"{_fmt_span(inits[-1], lang)}")
+    fig.suptitle(_tr(lang, "evolution_suptitle"), x=0.5, y=0.98,
                  fontsize=14, ha="center")
-    ax.set_title(
-        f"{where}  ·  ECMWF IFS 0.25° ensemble median (50th percentile) "
-        f"per model run, model-native 3-hourly\n"
-        f"How the median forecast for each time shifted across "
-        f"{n} run{'s' if n != 1 else ''} – {span}",
-        fontsize=9.5,
-    )
+    line1 = _tr(lang, "evolution_line1").format(where=where)
+    line2 = _tr(lang, "evolution_line2").format(
+        runs=_runs_phrase(n, lang), span=span)
+    ax.set_title(f"{line1}\n{line2}", fontsize=9.5)
 
-    fig.text(0.005, 0.005,
-             "Data: Open-Meteo Ensemble API (CC BY 4.0) – ECMWF IFS ensemble",
+    fig.text(0.005, 0.005, _tr(lang, "footer"),
              fontsize=7, color="0.5", ha="left", va="bottom")
 
     fig.tight_layout(rect=(0, 0.02, 1, 0.96))
@@ -447,6 +580,8 @@ def main() -> None:
                         help="forecast length in days (default: 11)")
     parser.add_argument("--output", default="ecmwf_ens_temperature_meteogram.png",
                         help="output image path")
+    parser.add_argument("--lang", default=DEFAULT_LANG, choices=sorted(STRINGS),
+                        help="language for labels and dates (default: en)")
     parser.add_argument("--save-json", default=None,
                         help="also write the raw API response to this path")
     args = parser.parse_args()
@@ -472,7 +607,7 @@ def main() -> None:
           f"({data.times[0]} -> {data.times[-1]})")
 
     plot(data, args.output, station_name=args.name,
-         station_height=args.station_height)
+         station_height=args.station_height, lang=args.lang)
     print(f"Wrote {args.output}")
 
 

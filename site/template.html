@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="__LANG__">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ECMWF ENS 2 m Temperature Meteogram</title>
+  <title>__TITLE__</title>
   <style>
     :root { color-scheme: light dark; }
     * { box-sizing: border-box; }
@@ -21,6 +21,14 @@
       a { color: #6fb3ff; }
     }
     .wrap { max-width: 1180px; margin: 0 auto; padding: 2rem 1.25rem 3rem; }
+    .topbar {
+      display: flex; justify-content: flex-end; margin-bottom: .5rem;
+    }
+    .lang { font-size: .9rem; }
+    .lang a { color: #6a7077; text-decoration: none; }
+    .lang a:hover { text-decoration: underline; }
+    .lang [aria-current="page"] { font-weight: 700; color: inherit; }
+    .lang .sep { color: #b3b8be; margin: 0 .15rem; }
     header h1 { font-size: 1.6rem; margin: 0 0 .25rem; }
     header p { margin: 0; color: #6a7077; }
     .card {
@@ -41,36 +49,31 @@
 </head>
 <body>
   <div class="wrap">
+    <div class="topbar">
+      <nav class="lang">__LANG_NAV__</nav>
+    </div>
     <header>
-      <h1>ECMWF ENS 2 m Temperature Meteogram</h1>
-      <p>Berlin (52.55°N, 13.41°E) · ECMWF IFS 0.25° ensemble, model-native 3-hourly</p>
+      <h1>__H1__</h1>
+      <p>__SUBTITLE__</p>
     </header>
 
     <div class="card">
-      <img src="meteogram.png?v=__IMG_VERSION__" alt="ECMWF ENS 2 m temperature meteogram">
+      <img src="meteogram.__LANG__.png?v=__IMG_VERSION__" alt="__ALT_METEO__">
       <div class="meta">
-        <span>Last updated: <strong>__UPDATED__</strong></span>
-        <span>Refreshes every 3 hours</span>
+        <span>__LABEL_UPDATED__ <strong>__UPDATED__</strong></span>
+        <span>__LABEL_REFRESH__</span>
       </div>
     </div>
 
     <div class="card">
-      <img src="evolution.png?v=__EVO_VERSION__"
-           alt="ECMWF ENS median evolution: how the 2 m temperature ensemble median for each time shifted across successive model runs">
+      <img src="evolution.__LANG__.png?v=__EVO_VERSION__" alt="__ALT_EVO__">
       <div class="meta">
-        <span>How the ensemble <strong>median</strong> for each time has
-          shifted across successive model runs, colour-coded by run
-          initialisation time. Builds up as runs are archived.</span>
+        <span>__CAPTION_EVO__</span>
       </div>
     </div>
 
     <footer>
-      <p>
-        Data from the
-        <a href="https://open-meteo.com/en/docs/ensemble-api">Open-Meteo Ensemble API</a>
-        (CC BY 4.0), based on the ECMWF IFS ensemble (ECMWF data, CC BY 4.0).
-        Source on <a href="https://github.com/jhrmnn/weather">GitHub</a>.
-      </p>
+      <p>__FOOTER__</p>
     </footer>
   </div>
 </body>
