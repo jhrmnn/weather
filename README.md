@@ -1,18 +1,25 @@
-# ECMWF ENS 2 m temperature meteogram
+# Ensemble 2 m temperature meteogram
 
-Reproduces the **2 m temperature** panel of an ECMWF ENS meteogram using data
-fetched from the [Open-Meteo Ensemble API](https://open-meteo.com/en/docs/ensemble-api),
-at the model's **native 3-hourly** resolution.
+Reproduces the **2 m temperature** panel of an ECMWF-style ENS meteogram using
+data fetched from the [Open-Meteo Ensemble API](https://open-meteo.com/en/docs/ensemble-api),
+at each model's **native** temporal resolution.
 
 ![Example meteogram](examples/ecmwf_ens_temperature_meteogram.png)
 
 ## What it does
 
-* Fetches the **ECMWF IFS 0.25° ensemble** (`ecmwf_ifs025`) for a single point.
-* Uses all **51 members** — the control forecast plus 50 perturbed members.
-* Requests `temporal_resolution=native`, which for the ECMWF IFS ensemble is
-  **3-hourly across the whole forecast horizon** (Open-Meteo otherwise
-  interpolates everything to 1-hourly).
+* Fetches an **ensemble model** for a single point. The default is the
+  **ECMWF IFS 0.25° ensemble** (`ecmwf_ifs025`); the site also offers
+  **ECMWF AIFS 0.25°** (`ecmwf_aifs025`), **NOAA GEFS 0.25°**
+  (`ncep_gefs025`), **DWD ICON-EU EPS** (`icon_eu_eps`) and **DWD ICON-D2
+  EPS** (`icon_d2_eps`). The set of models lives in `MODELS` in
+  [`data/collect.py`](data/collect.py); add one there to grow the archive and
+  the site's model selector.
+* Uses **all the ensemble members** the model returns — the control forecast
+  plus the perturbed members (e.g. 51 total for ECMWF IFS, 31 for NOAA GEFS).
+* Requests `temporal_resolution=native`, the model's own step (3-hourly for the
+  ECMWF/GFS models, hourly for the ICON models) across the whole forecast
+  horizon (Open-Meteo otherwise interpolates everything to 1-hourly).
 * Computes the ensemble percentile distribution at each time step and draws an
   ECMWF-style **box-and-whisker** plot with the control forecast overlaid.
 
@@ -35,7 +42,7 @@ one model run to the next** — the "is the forecast converging?" view.
 
 ![Example median evolution](examples/ecmwf_median_evolution.png)
 
-Each line is one archived run's median (50th percentile across the 51 members),
+Each line is one archived run's median (50th percentile across the members),
 drawn against valid time and **colour-coded by the run's initialisation time**
 (see the colorbar); the most recent run is drawn boldest, on top. Unlike the
 box-and-whisker meteogram — which renders the single latest run — this plot is
@@ -48,8 +55,11 @@ ECMWF run roughly every 6 h).
 ```bash
 pip install -r requirements.txt
 
-# Default: Berlin (52.55°N, 13.41°E), 11-day forecast
+# Default: Berlin (52.55°N, 13.41°E), ECMWF IFS ensemble
 python meteogram.py
+
+# A different ensemble model (see MODELS in data/collect.py)
+python meteogram.py --model gfs_ensemble025 --output berlin_gefs.png
 
 # Any location, with an optional name / station height in the title
 python meteogram.py --latitude 48.21 --longitude 16.37 --name Vienna \
@@ -62,21 +72,21 @@ python meteogram.py --lang cs --output vienna_cs.png
 python meteogram.py --save-json response.json
 ```
 
-Run `python meteogram.py --help` for all options (`--latitude`, `--longitude`,
-`--name`, `--station-height`, `--forecast-days`, `--output`, `--lang`,
-`--save-json`).
+Run `python meteogram.py --help` for all options (`--model`, `--latitude`,
+`--longitude`, `--name`, `--station-height`, `--forecast-days`, `--output`,
+`--lang`, `--save-json`).
 
 ## Notes on fidelity vs. the operational product
 
 * Open-Meteo serves the ECMWF ensemble on a **0.25° grid (~25 km)**; the
   operational ECMWF meteogram uses the native **~9 km** ENS. The requested
-  point is therefore snapped to the nearest 0.25° grid cell, so fine-scale and
-  elevation-dependent details differ slightly.
+  point is therefore snapped to the nearest grid cell (coarser still for some
+  models), so fine-scale and elevation-dependent details differ slightly.
 * Temperatures are taken as Open-Meteo returns them for the grid cell's model
   elevation; no additional station-height lapse-rate reduction is applied (the
   official product reduces to the station height, typically a sub-0.1 °C
   effect for small height differences).
-* The distribution is computed over all 51 members (control included), which is
+* The distribution is computed over **all members, control included**, which is
   the ECMWF convention.
 
 ## Automated deployment
@@ -90,15 +100,17 @@ builds the site, and deploys it, in four jobs:
   early. New data is committed and pushed to the `data` branch (keyed by run, so
   each run is stored once). See [`data/collect.py`](data/collect.py).
 * **build** — checks out the `data` branch and renders the plots from the
-  **latest archived data** (no live fetching) for **every archived city** in
-  **both English and Czech**, embedding them into a small **bilingual** static
+  **latest archived data** (no live fetching) for **every archived city × model**
+  in **both English and Czech**, embedding them into a small **bilingual** static
   site ([`site/template.html`](site/template.html)), and uploads the artifacts.
-  A **top-level city dropdown** switches between cities client-side (no page
-  reload), and the selection is remembered across the language switch. English
-  is served as `index.html` (the site default) and Czech as `cs.html`; each page
-  links to the other, and each city/language gets its own figures
-  (`meteogram.<city>.<lang>.png`, `evolution.<city>.<lang>.png`) with localised
-  labels, titles, and date names. The set of cities mirrors `LOCATIONS` in
+  **Top-level city and model dropdowns** switch between combinations client-side
+  (no page reload); a model with no data for a city is disabled for it, and both
+  selections are remembered across the language switch. English is served as
+  `index.html` (the site default) and Czech as `cs.html`; each page links to the
+  other, and each city/model/language gets its own figures
+  (`meteogram.<city>.<model>.<lang>.png`,
+  `evolution.<city>.<model>.<lang>.png`) with localised labels, titles, and date
+  names. The cities mirror `LOCATIONS` and the models `MODELS` in
   [`data/collect.py`](data/collect.py).
 * **deploy-pages** — publishes to **GitHub Pages** with `actions/deploy-pages`,
   on the production triggers only: every **three hours**
@@ -140,7 +152,7 @@ responses** on a dedicated orphan branch called `data` (kept off `main`, so the
 code history stays clean). The **build** job renders the site from it.
 
 * [`data/collect.py`](data/collect.py) fetches the raw Open-Meteo response for
-  each configured location and stores it under
+  each configured location **and model** and stores it under
   `<model>/<lat>_<lon>/<run-init-time>.json` — the API payload as-is, plus a
   `model_run_time` stamp (the run's UTC initialisation time, read from the
   model's static metadata, since the payload itself carries no run timestamp).
@@ -153,10 +165,10 @@ code history stays clean). The **build** job renders the site from it.
 * All fetching lives in `data/collect.py`; [`meteogram.py`](meteogram.py) only
   parses and plots, and the `build` job renders from the archive.
 
-Browse it with `git fetch origin data && git switch data`, or add locations by
-extending `LOCATIONS` in `data/collect.py`.
+Browse it with `git fetch origin data && git switch data`, or add locations or
+models by extending `LOCATIONS` / `MODELS` in `data/collect.py`.
 
 ## Data & licence
 
 Forecast data from the [Open-Meteo Ensemble API](https://open-meteo.com/)
-(CC BY 4.0), based on the **ECMWF IFS ensemble** (ECMWF data, CC BY 4.0).
+(CC BY 4.0), based on **ECMWF, NOAA and DWD ensemble models** (CC BY 4.0).

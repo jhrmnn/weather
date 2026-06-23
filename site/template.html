@@ -25,6 +25,9 @@
       display: flex; align-items: center; justify-content: space-between;
       gap: 1rem; margin-bottom: .5rem;
     }
+    .selectors {
+      display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1.25rem;
+    }
     .city-select {
       display: inline-flex; align-items: center; gap: .4rem; font-size: .9rem;
     }
@@ -69,15 +72,21 @@
 <body>
   <div class="wrap">
     <div class="topbar">
-      <label class="city-select">
-        <span class="city-label">__LABEL_CITY__</span>
-        <select id="city" aria-label="__LABEL_CITY__">__CITY_OPTIONS__</select>
-      </label>
+      <div class="selectors">
+        <label class="city-select">
+          <span class="city-label">__LABEL_CITY__</span>
+          <select id="city" aria-label="__LABEL_CITY__">__CITY_OPTIONS__</select>
+        </label>
+        <label class="city-select">
+          <span class="city-label">__LABEL_MODEL__</span>
+          <select id="model" aria-label="__LABEL_MODEL__">__MODEL_OPTIONS__</select>
+        </label>
+      </div>
       <nav class="lang">__LANG_NAV__</nav>
     </div>
     <header>
       <h1>__H1__</h1>
-      <p><span id="city-sub">__CITY_SUB__</span> · __SUBTITLE_TAIL__</p>
+      <p><span id="city-sub">__CITY_SUB__</span> · <span id="model-tail">__SUBTITLE_TAIL__</span></p>
     </header>
 
     <div class="card">
@@ -101,74 +110,121 @@
   </div>
 
   <script>
-    // Top-level city selector: swap the figures (and the subtitle's city part)
-    // in place when a different city is chosen — no page reload. The non-default
-    // selection is reflected in the URL (?city=<slug>) so it can be shared and
-    // bookmarked, mirrored to localStorage, and carried onto the language link
-    // so it survives the language switch.
+    // Top-level city + model selectors: swap the figures (and the subtitle's
+    // city and model parts) in place when either is changed — no page reload.
+    // Each non-default selection is reflected in the URL (?city=&model=) so it
+    // can be shared and bookmarked, mirrored to localStorage, and carried onto
+    // the language link so it survives the language switch. Not every model has
+    // data for every city, so unavailable models are disabled per city and a
+    // city that lacks the chosen model falls back to an available one.
     (function () {
       var CITIES = __CITY_DATA__;
-      var DEFAULT = "__DEFAULT_CITY__";
-      var PARAM = "city";
-      var STORE_KEY = "weather-city";
-      var select = document.getElementById("city");
+      var DEFAULT_CITY = "__DEFAULT_CITY__";
+      var DEFAULT_MODEL = "__DEFAULT_MODEL__";
+      var CITY_PARAM = "city";
+      var MODEL_PARAM = "model";
+      var CITY_KEY = "weather-city";
+      var MODEL_KEY = "weather-model";
+      var citySel = document.getElementById("city");
+      var modelSel = document.getElementById("model");
       var meteoImg = document.getElementById("meteogram-img");
       var evoImg = document.getElementById("evolution-img");
       var citySub = document.getElementById("city-sub");
+      var modelTail = document.getElementById("model-tail");
 
-      // Reflect the selection in the URL: a query param for non-default cities,
-      // and a clean URL (no param) for the default.
-      function syncUrl(slug) {
+      function cityOf(slug) {
+        return CITIES[slug] ? slug : DEFAULT_CITY;
+      }
+
+      // Pick a model valid for ``citySlug``: the requested one if available,
+      // else the site default, else the city's first available model.
+      function modelOf(citySlug, modelId) {
+        var models = CITIES[citySlug].models;
+        if (models[modelId]) return modelId;
+        if (models[DEFAULT_MODEL]) return DEFAULT_MODEL;
+        return Object.keys(models)[0];
+      }
+
+      // Reflect a selection in the URL: a query param for non-default values,
+      // a clean URL (no param) for the default.
+      function setParam(url, name, value, isDefault) {
+        if (isDefault) url.searchParams.delete(name);
+        else url.searchParams.set(name, value);
+      }
+      function syncUrl(citySlug, modelId) {
         var url = new URL(window.location.href);
-        if (slug === DEFAULT) {
-          url.searchParams.delete(PARAM);
-        } else {
-          url.searchParams.set(PARAM, slug);
-        }
+        setParam(url, CITY_PARAM, citySlug, citySlug === DEFAULT_CITY);
+        setParam(url, MODEL_PARAM, modelId, modelId === DEFAULT_MODEL);
         history.replaceState(null, "", url.toString());
       }
 
-      // Carry the selection onto the language switcher link so it survives the
+      // Carry the selection onto the language switcher links so it survives the
       // page navigation even without localStorage.
-      function syncLangLinks(slug) {
+      function syncLangLinks(citySlug, modelId) {
         var links = document.querySelectorAll(".lang a[href]");
         for (var i = 0; i < links.length; i++) {
-          // Keep the original relative target (``./`` for the default
-          // language, ``<lang>.html`` otherwise) so the clean directory URL is
-          // preserved, and only attach the city query param.
+          // Keep the original relative target (``./`` for the default language,
+          // ``<lang>.html`` otherwise) so the clean directory URL is preserved,
+          // and only attach the non-default query params.
           var base = links[i].getAttribute("href").split("?")[0];
+          var params = [];
+          if (citySlug !== DEFAULT_CITY)
+            params.push(CITY_PARAM + "=" + encodeURIComponent(citySlug));
+          if (modelId !== DEFAULT_MODEL)
+            params.push(MODEL_PARAM + "=" + encodeURIComponent(modelId));
           links[i].setAttribute(
-            "href",
-            slug === DEFAULT
-              ? base
-              : base + "?" + PARAM + "=" + encodeURIComponent(slug));
+            "href", params.length ? base + "?" + params.join("&") : base);
         }
       }
 
-      function apply(slug) {
-        var c = CITIES[slug];
-        if (!c) return;
-        meteoImg.src = c.meteo;
-        evoImg.src = c.evo;
-        citySub.textContent = c.sub;
-        select.value = slug;
-        try { localStorage.setItem(STORE_KEY, slug); } catch (e) {}
-        syncUrl(slug);
-        syncLangLinks(slug);
+      // Disable the model options that have no data for the current city.
+      function syncModelOptions(citySlug) {
+        var models = CITIES[citySlug].models;
+        for (var i = 0; i < modelSel.options.length; i++) {
+          var opt = modelSel.options[i];
+          opt.disabled = !models[opt.value];
+        }
       }
 
-      // Initial city: an explicit URL param wins (shareable links), then the
-      // remembered choice, then the default.
-      var fromUrl = new URLSearchParams(window.location.search).get(PARAM);
-      var stored;
-      try { stored = localStorage.getItem(STORE_KEY); } catch (e) {}
-      var initial = (fromUrl && CITIES[fromUrl]) ? fromUrl
-                  : (stored && CITIES[stored]) ? stored
-                  : DEFAULT;
-      apply(initial);
+      function apply(citySlug, modelId) {
+        citySlug = cityOf(citySlug);
+        modelId = modelOf(citySlug, modelId);
+        var city = CITIES[citySlug];
+        var m = city.models[modelId];
+        meteoImg.src = m.meteo;
+        evoImg.src = m.evo;
+        citySub.textContent = city.sub;
+        modelTail.textContent = m.tail;
+        citySel.value = citySlug;
+        syncModelOptions(citySlug);
+        modelSel.value = modelId;
+        try {
+          localStorage.setItem(CITY_KEY, citySlug);
+          localStorage.setItem(MODEL_KEY, modelId);
+        } catch (e) {}
+        syncUrl(citySlug, modelId);
+        syncLangLinks(citySlug, modelId);
+      }
 
-      select.addEventListener("change", function () {
-        apply(select.value);
+      // Initial selection per axis: an explicit URL param wins (shareable
+      // links), then the remembered choice, then the default. Validity is
+      // enforced by ``cityOf``/``modelOf`` in ``apply``.
+      function initial(param, key, fallback) {
+        var fromUrl = new URLSearchParams(window.location.search).get(param);
+        if (fromUrl) return fromUrl;
+        var stored;
+        try { stored = localStorage.getItem(key); } catch (e) {}
+        return stored || fallback;
+      }
+
+      apply(initial(CITY_PARAM, CITY_KEY, DEFAULT_CITY),
+            initial(MODEL_PARAM, MODEL_KEY, DEFAULT_MODEL));
+
+      citySel.addEventListener("change", function () {
+        apply(citySel.value, modelSel.value);
+      });
+      modelSel.addEventListener("change", function () {
+        apply(citySel.value, modelSel.value);
       });
     })();
   </script>

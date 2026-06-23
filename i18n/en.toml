@@ -9,8 +9,8 @@ name = "English"
 # Figure text, rendered into the meteogram/evolution PNGs (was
 # ``meteogram.STRINGS``). ``{...}`` placeholders are filled with ``str.format``.
 [strings]
-meteogram_suptitle = "ECMWF ENS Meteogram – 2 m Temperature"
-evolution_suptitle = "ECMWF ENS Median Evolution – 2 m Temperature"
+meteogram_suptitle = "Ensemble Meteogram – 2 m Temperature"
+evolution_suptitle = "Ensemble Median Evolution – 2 m Temperature"
 ylabel = "2 m Temperature ({units})"
 legend_median = "Median"
 legend_control = "Control forecast"
@@ -20,23 +20,31 @@ glyph_min = "min"
 glyph_median = "median"
 glyph_control = "control"
 colorbar = "Forecast run (initialisation, UTC)"
-footer = "Data: Open-Meteo Ensemble API (CC BY 4.0) – ECMWF IFS ensemble"
-meteogram_line1 = "{where}  ·  ECMWF IFS 0.25° ensemble ({n} members), model-native 3-hourly"
+footer = "Data: Open-Meteo Ensemble API (CC BY 4.0) – {model} ensemble"
+meteogram_line1 = "{where}  ·  {model} ensemble ({n} members), {cadence}"
 meteogram_line2 = "Control Forecast and ENS Distribution – {init}"
-evolution_line1 = "{where}  ·  ECMWF IFS 0.25° ensemble median (50th percentile) per model run, model-native 3-hourly"
+evolution_line1 = "{where}  ·  {model} ensemble median (50th percentile) per model run, {cadence}"
 evolution_line2 = "How the median forecast for each time shifted across {runs} – {span}"
+
+# Localised "model-native …" cadence phrases, selected by each model's cadence id
+# (see ``collect.Model``). Filled into the ``{cadence}`` placeholders above.
+[cadence]
+"1h" = "model-native hourly"
+"3h" = "model-native 3-hourly"
+"6h" = "model-native 6-hourly"
 
 # HTML page chrome, everything outside the figures (was ``build.HTML_STRINGS``).
 [html]
-title = "ECMWF ENS 2 m Temperature Meteogram"
-subtitle_tail = "ECMWF IFS 0.25° ensemble, model-native 3-hourly"
-alt_meteo = "ECMWF ENS 2 m temperature meteogram"
+title = "Ensemble 2 m Temperature Meteogram"
+subtitle_tail = "{model} ensemble, {cadence}"
+alt_meteo = "Ensemble 2 m temperature meteogram"
 label_city = "City"
+label_model = "Model"
 label_updated = "Last updated:"
 label_refresh = "Refreshes every 3 hours"
-alt_evo = "ECMWF ENS median evolution: how the 2 m temperature ensemble median for each time shifted across successive model runs"
+alt_evo = "Ensemble median evolution: how the 2 m temperature ensemble median for each time shifted across successive model runs"
 caption_evo = "How the ensemble <strong>median</strong> for each time has shifted across successive model runs, colour-coded by run initialisation time. Builds up as runs are archived."
-footer = 'Data from the <a href="https://open-meteo.com/en/docs/ensemble-api">Open-Meteo Ensemble API</a> (CC BY 4.0), based on the ECMWF IFS ensemble (ECMWF data, CC BY 4.0). Source on <a href="https://github.com/jhrmnn/weather">GitHub</a>.'
+footer = 'Data from the <a href="https://open-meteo.com/en/docs/ensemble-api">Open-Meteo Ensemble API</a> (CC BY 4.0), based on ECMWF, NOAA and DWD ensemble models (CC BY 4.0). Source on <a href="https://github.com/jhrmnn/weather">GitHub</a>.'
 
 # Locale date names, indexed Mon..Sun / Jan..Dec. Dates are formatted from these
 # tables rather than via ``strftime``/locale, so output is identical regardless

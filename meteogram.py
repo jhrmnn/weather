@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
-"""Reproduce the ECMWF ENS 2 m temperature meteogram from Open-Meteo data.
+"""Draw an ECMWF-style 2 m temperature meteogram from Open-Meteo data.
 
-This fetches the ECMWF IFS 0.25 deg ensemble (``ecmwf_ifs025``) from the
-Open-Meteo Ensemble API and draws an ECMWF-style box-and-whisker meteogram for
-2 m temperature.
+This fetches an ensemble model from the Open-Meteo Ensemble API (the ECMWF IFS
+0.25° ensemble, ``ecmwf_ifs025``, by default; ``--model`` selects another of
+``collect.MODELS``) and draws an ECMWF-style box-and-whisker meteogram for 2 m
+temperature.
 
-The ensemble has 51 members: one control forecast (the base ``temperature_2m``
-series) plus 50 perturbed members (``temperature_2m_member01`` ...
-``temperature_2m_member50``).  Data is requested at the model-*native* temporal
-resolution which, for the ECMWF IFS ensemble, is 3-hourly across the whole
-forecast horizon (rather than Open-Meteo's default 1-hourly interpolation).
+An ensemble has one control forecast (the base ``temperature_2m`` series) plus a
+number of perturbed members (``temperature_2m_member01`` ...), varying by model
+(e.g. 51 total for ECMWF IFS, 31 for NOAA GEFS); the parser collects whichever
+members the API returns. Data is requested at the model-*native* temporal
+resolution — 3-hourly or hourly depending on the model — rather than
+Open-Meteo's default 1-hourly interpolation.
 
 Box-and-whisker convention (matching ECMWF's own meteograms):
 
@@ -72,9 +74,15 @@ from i18n import (  # noqa: E402
     LANGS,
     MONTH_ABBR as _MONTH_ABBR,
     MONTH_FULL as _MONTH_FULL,
+    cadence as _cadence,
     runs_phrase as _runs_phrase,
     tr as _tr,
 )
+
+# Default figure model label/cadence used when a caller doesn't specify one (the
+# meteogram CLI and ad-hoc plotting); mirrors ``collect.DEFAULT_MODEL``.
+DEFAULT_MODEL_LABEL = "ECMWF IFS 0.25°"
+DEFAULT_CADENCE = "3h"
 
 
 def _fmt_day_tick(d: dt.datetime, lang: str) -> str:
@@ -250,10 +258,15 @@ def _draw_legend_glyph(ax: plt.Axes, lang: str = DEFAULT_LANG) -> None:
 
 def plot(data: EnsembleData, output: str, station_name: str | None = None,
          station_height: float | None = None,
-         lang: str = DEFAULT_LANG) -> None:
+         lang: str = DEFAULT_LANG,
+         model_label: str = DEFAULT_MODEL_LABEL,
+         cadence: str = DEFAULT_CADENCE) -> None:
     """Render the ECMWF-style box-and-whisker meteogram to ``output``.
 
     ``lang`` selects the language of all labels and date names ("en" or "cs").
+    ``model_label`` is the ensemble model's display name (e.g. "ECMWF IFS 0.25°")
+    and ``cadence`` its cadence id ("1h"/"3h"/"6h"); both feed the localised
+    titles and footer.
     """
     # Percentiles across all members at every time step.
     qs = np.nanpercentile(data.members, [0, 10, 25, 50, 75, 90, 100], axis=0)
@@ -333,8 +346,9 @@ def plot(data: EnsembleData, output: str, station_name: str | None = None,
     init = _fmt_init(data.run_or_start, lang)
     fig.suptitle(_tr(lang, "meteogram_suptitle"), x=0.5, y=0.98,
                  fontsize=14, ha="center")
-    line1 = _tr(lang, "meteogram_line1").format(where=where,
-                                                n=data.n_members)
+    line1 = _tr(lang, "meteogram_line1").format(
+        where=where, n=data.n_members, model=model_label,
+        cadence=_cadence(lang, cadence))
     line2 = _tr(lang, "meteogram_line2").format(init=init)
     ax.set_title(f"{line1}\n{line2}", fontsize=9.5)
 
@@ -342,7 +356,7 @@ def plot(data: EnsembleData, output: str, station_name: str | None = None,
     key = ax.inset_axes([0.012, 0.58, 0.085, 0.40])
     _draw_legend_glyph(key, lang)
 
-    fig.text(0.005, 0.005, _tr(lang, "footer"),
+    fig.text(0.005, 0.005, _tr(lang, "footer").format(model=model_label),
              fontsize=7, color="0.5", ha="left", va="bottom")
 
     fig.tight_layout(rect=(0, 0.02, 1, 0.96))
@@ -365,7 +379,9 @@ def _smooth_track(x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]
 def plot_median_evolution(runs: list[EnsembleData], output: str,
                           station_name: str | None = None,
                           station_height: float | None = None,
-                          lang: str = DEFAULT_LANG) -> None:
+                          lang: str = DEFAULT_LANG,
+                          model_label: str = DEFAULT_MODEL_LABEL,
+                          cadence: str = DEFAULT_CADENCE) -> None:
     """Plot how the ensemble median for each time evolved across model runs.
 
     ``runs`` is a list of archived ensembles, oldest first. Each run's median
@@ -467,12 +483,13 @@ def plot_median_evolution(runs: list[EnsembleData], output: str,
             f"{_fmt_span(inits[-1], lang)}")
     fig.suptitle(_tr(lang, "evolution_suptitle"), x=0.5, y=0.98,
                  fontsize=14, ha="center")
-    line1 = _tr(lang, "evolution_line1").format(where=where)
+    line1 = _tr(lang, "evolution_line1").format(
+        where=where, model=model_label, cadence=_cadence(lang, cadence))
     line2 = _tr(lang, "evolution_line2").format(
         runs=_runs_phrase(n, lang), span=span)
     ax.set_title(f"{line1}\n{line2}", fontsize=9.5)
 
-    fig.text(0.005, 0.005, _tr(lang, "footer"),
+    fig.text(0.005, 0.005, _tr(lang, "footer").format(model=model_label),
              fontsize=7, color="0.5", ha="left", va="bottom")
 
     fig.tight_layout(rect=(0, 0.02, 1, 0.96))
@@ -499,7 +516,6 @@ def main() -> None:
                         help="language for labels and dates (default: en)")
     parser.add_argument("--save-json", default=None,
                         help="also write the raw API response to this path")
-    args = parser.parse_args()
 
     # Fetching lives in the data layer (data/collect.py); meteogram only parses
     # and plots. Import it lazily so the plotting API has no fetch dependency.
@@ -507,9 +523,17 @@ def main() -> None:
                                     "data"))
     import collect  # noqa: E402
 
-    print(f"Fetching ECMWF IFS ensemble for {args.latitude}, {args.longitude} "
-          f"({args.forecast_days} days, native 3-hourly) ...")
-    payload = collect.fetch_raw(args.latitude, args.longitude,
+    models = {m.id: m for m in collect.MODELS}
+    parser.add_argument("--model", default=collect.DEFAULT_MODEL.id,
+                        choices=list(models),
+                        help="ensemble model id (default: "
+                             f"{collect.DEFAULT_MODEL.id})")
+    args = parser.parse_args()
+    model = models[args.model]
+
+    print(f"Fetching {model.label} ensemble for {args.latitude}, "
+          f"{args.longitude} ...")
+    payload = collect.fetch_raw(args.latitude, args.longitude, model,
                                 args.forecast_days)
     if args.save_json:
         with open(args.save_json, "w") as fh:
@@ -522,7 +546,8 @@ def main() -> None:
           f"({data.times[0]} -> {data.times[-1]})")
 
     plot(data, args.output, station_name=args.name,
-         station_height=args.station_height, lang=args.lang)
+         station_height=args.station_height, lang=args.lang,
+         model_label=model.label, cadence=model.cadence)
     print(f"Wrote {args.output}")
 
 
