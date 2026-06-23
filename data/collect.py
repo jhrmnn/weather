@@ -22,6 +22,7 @@ import argparse
 import datetime as dt
 import json
 import os
+import time
 from dataclasses import dataclass
 
 import requests
@@ -39,6 +40,14 @@ RUN_TIME_FORMAT = "%Y-%m-%dT%H:%M"
 # How many times to re-fetch the data when a new run lands mid-fetch (see
 # ``fetch_raw``); a tiny window, so one retry almost always suffices.
 RUN_FETCH_RETRIES = 3
+
+# Per-request resilience: the Open-Meteo endpoints occasionally time out or
+# return a transient 5xx, and a run archives several locations in one go (each a
+# few HTTP calls), so a single flaky response shouldn't fail the whole job.
+# Retry the GET a few times with exponential backoff before giving up.
+REQUEST_RETRIES = 4
+REQUEST_BACKOFF = 2.0  # seconds; doubled after each failed attempt
+REQUEST_TIMEOUT = 60  # seconds per attempt
 
 # Filename key: the model run's UTC initialisation time, YYYYMMDDTHHMMSSZ.
 STAMP_FORMAT = "%Y%m%dT%H%M%SZ"
@@ -69,11 +78,36 @@ class Location:
     name: str | None = None
 
 
-# Points to archive. Mirrors the published site (Berlin) by default; add more
-# entries here to grow the archive.
+# Points to archive. Each becomes a selectable city on the published site (the
+# site renders one figure pair per location); add more entries here to grow the
+# archive and the city selector.
 LOCATIONS = [
     Location(52.55, 13.41, "Berlin"),
+    Location(50.08, 14.44, "Prague"),
+    Location(48.81, 14.32, "Český Krumlov"),
+    Location(48.15, 17.11, "Bratislava"),
 ]
+
+
+def _get(url: str, **kwargs) -> requests.Response:
+    """GET ``url`` with a per-attempt timeout, retrying transient failures.
+
+    Network timeouts and 5xx responses from the Open-Meteo endpoints are
+    retried with exponential backoff (see ``REQUEST_RETRIES``); the last error
+    is re-raised if every attempt fails. Keeps a single flaky response from
+    failing a collection run that fetches several locations.
+    """
+    last_exc: Exception | None = None
+    for attempt in range(REQUEST_RETRIES):
+        try:
+            resp = requests.get(url, timeout=REQUEST_TIMEOUT, **kwargs)
+            resp.raise_for_status()
+            return resp
+        except requests.exceptions.RequestException as exc:
+            last_exc = exc
+            if attempt < REQUEST_RETRIES - 1:
+                time.sleep(REQUEST_BACKOFF * (2 ** attempt))
+    raise last_exc  # type: ignore[misc]
 
 
 def latest_run_time(model: str = MODEL) -> dt.datetime:
@@ -85,8 +119,7 @@ def latest_run_time(model: str = MODEL) -> dt.datetime:
     run time lives in the model's static metadata, so a forecast can be keyed
     and labelled by the run that produced it rather than by the window start.
     """
-    resp = requests.get(META_URL.format(model=model), timeout=60)
-    resp.raise_for_status()
+    resp = _get(META_URL.format(model=model))
     ts = resp.json()["last_run_initialisation_time"]
     return dt.datetime.fromtimestamp(ts, dt.timezone.utc)
 
@@ -123,8 +156,7 @@ def fetch_raw(
     }
     for _ in range(RUN_FETCH_RETRIES):
         run_before = latest_run_time()
-        resp = requests.get(ENSEMBLE_URL, params=params, timeout=60)
-        resp.raise_for_status()
+        resp = _get(ENSEMBLE_URL, params=params)
         payload = resp.json()
         run_after = latest_run_time()
         if run_before == run_after:
