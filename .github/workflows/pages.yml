@@ -175,13 +175,18 @@ jobs:
           path: _site
 
   # Publish to GitHub Pages on the production triggers: push to main, schedule,
-  # and manual dispatch.
+  # and manual dispatch. The `!cancelled() && needs.build.result == 'success'`
+  # guard is required because most runs throttle (skip) the fetch job, and a
+  # skipped job's skip propagates down the needs chain to dependents whose `if:`
+  # lacks a status-check function — without it this deploy would skip whenever
+  # fetch was throttled, even though build succeeded.
   deploy-pages:
     needs: build
     if: >-
-      github.event_name == 'push' ||
-      github.event_name == 'schedule' ||
-      github.event_name == 'workflow_dispatch'
+      !cancelled() && needs.build.result == 'success' &&
+      (github.event_name == 'push' ||
+       github.event_name == 'schedule' ||
+       github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     permissions:
       pages: write
@@ -202,8 +207,11 @@ jobs:
   deploy-cloudflare:
     needs: build
     # Secrets aren't exposed to forked-PR runs, so skip them to avoid a
-    # guaranteed failure. Same-repo branch PRs deploy as normal.
+    # guaranteed failure. Same-repo branch PRs deploy as normal. The
+    # `!cancelled() && needs.build.result == 'success'` guard keeps a throttled
+    # (skipped) fetch from propagating its skip down to this preview deploy.
     if: >-
+      !cancelled() && needs.build.result == 'success' &&
       github.event_name == 'pull_request' &&
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
