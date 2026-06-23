@@ -38,6 +38,15 @@ comparison_line2 = "Latest available run of each model, compared on one axis"
 "6h" = "model-native 6-hourly"
 
 # HTML page chrome, everything outside the figures (was ``build.HTML_STRINGS``).
+# Localised city display names, keyed by the language-independent city slug
+# (see ``site/build._slug``). Only cities whose name differs between languages
+# need an entry; anything missing falls back to the canonical name in
+# ``collect.LOCATIONS``. These label the figures, the city subtitle, and the
+# city selector.
+[cities]
+berlin = "Berlin"
+prague = "Prague"
+
 [html]
 title = "Ensemble 2 m Temperature Meteogram"
 subtitle_tail = "{model} ensemble, {cadence}"

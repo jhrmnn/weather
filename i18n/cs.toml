@@ -32,6 +32,12 @@ comparison_line2 = "Poslední dostupný běh každého modelu, porovnaný na jed
 "3h" = "nativní 3hodinové rozlišení modelu"
 "6h" = "nativní 6hodinové rozlišení modelu"
 
+# Lokalizované názvy měst; klíčem je jazykově nezávislý slug města (viz
+# ``site/build._slug``). Viz ``en.toml`` k významu sekce.
+[cities]
+berlin = "Berlín"
+prague = "Praha"
+
 [html]
 title = "Meteogram teploty ve 2 m ze souboru"
 subtitle_tail = "soubor {model}, {cadence}"
