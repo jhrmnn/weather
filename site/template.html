@@ -208,7 +208,7 @@
         integImg.src = city.integ;
         meteoImg.src = m.meteo;
         evoImg.src = m.evo;
-        citySub.textContent = city.sub;
+        citySub.innerHTML = m.sub;
         modelTail.textContent = m.tail;
         citySel.value = citySlug;
         syncModelOptions(citySlug);

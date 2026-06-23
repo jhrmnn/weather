@@ -41,6 +41,7 @@ prague = "Praha"
 [html]
 title = "Meteogram teploty ve 2 m ze souboru"
 subtitle_tail = "soubor {model}, {cadence}"
+maps_link_title = "Otevřít bod sítě modelu na Mapách Google – kde se předpověď skutečně počítá"
 alt_meteo = "Meteogram teploty ve 2 m ze souboru"
 alt_integ = "Porovnání modelů: medián souboru teploty ve 2 m z posledního běhu každého modelu na jedné ose"
 label_city = "Město"
