@@ -1,0 +1,47 @@
+# Czech message catalogue. Mirrors ``en.toml``; see that file for the meaning of
+# each section.
+
+name = "Čeština"
+
+[strings]
+meteogram_suptitle = "Meteogram ECMWF ENS – teplota ve 2 m"
+evolution_suptitle = "Vývoj mediánu ECMWF ENS – teplota ve 2 m"
+ylabel = "Teplota ve 2 m ({units})"
+legend_median = "Medián"
+legend_control = "Kontrolní předpověď"
+legend_latest = "poslední běh"
+glyph_max = "max"
+glyph_min = "min"
+glyph_median = "medián"
+glyph_control = "kontrolní"
+colorbar = "Běh předpovědi (inicializace, UTC)"
+footer = "Data: Open-Meteo Ensemble API (CC BY 4.0) – soubor ECMWF IFS"
+meteogram_line1 = "{where}  ·  soubor ECMWF IFS 0.25° ({n} členů), nativní 3hodinové rozlišení modelu"
+meteogram_line2 = "Kontrolní předpověď a rozdělení ENS – {init}"
+evolution_line1 = "{where}  ·  medián souboru ECMWF IFS 0.25° (50. percentil) podle běhu modelu, nativní 3hodinové rozlišení modelu"
+evolution_line2 = "Jak se medián předpovědi pro každý čas posouval během {runs} – {span}"
+
+[html]
+title = "ECMWF ENS meteogram teploty ve 2 m"
+subtitle_tail = "soubor ECMWF IFS 0.25°, nativní 3hodinové rozlišení modelu"
+alt_meteo = "Meteogram teploty ve 2 m ECMWF ENS"
+label_city = "Město"
+label_updated = "Naposledy aktualizováno:"
+label_refresh = "Aktualizuje se každé 3 hodiny"
+alt_evo = "Vývoj mediánu ECMWF ENS: jak se medián souboru teploty ve 2 m pro každý čas posouval během po sobě jdoucích běhů modelu"
+caption_evo = "Jak se <strong>medián</strong> souboru pro každý čas posouval během po sobě jdoucích běhů modelu, barevně odlišeno podle času inicializace běhu. Doplňuje se s přibývajícími běhy."
+footer = 'Data z <a href="https://open-meteo.com/en/docs/ensemble-api">Open-Meteo Ensemble API</a> (CC BY 4.0), založeno na souboru ECMWF IFS (data ECMWF, CC BY 4.0). Zdrojový kód na <a href="https://github.com/jhrmnn/weather">GitHubu</a>.'
+
+# Czech month names take the genitive in date phrases ("23. června").
+[dates]
+day_abbr = ["Po", "Út", "St", "Čt", "Pá", "So", "Ne"]
+day_full = ["pondělí", "úterý", "středa", "čtvrtek", "pátek", "sobota", "neděle"]
+month_abbr = ["led", "úno", "bře", "dub", "kvě", "čvn", "čvc", "srp", "zář", "říj", "lis", "pro"]
+month_full = ["ledna", "února", "března", "dubna", "května", "června", "července", "srpna", "září", "října", "listopadu", "prosince"]
+
+# Czech has three plural forms: ``one`` (n == 1), ``few`` (2–4), ``other`` (0,
+# 5+). The selection rule lives in the loader.
+[plurals]
+runs_one = "{n} běh"
+runs_few = "{n} běhy"
+runs_other = "{n} běhů"

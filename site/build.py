@@ -35,60 +35,16 @@ sys.path.insert(0, _ROOT)
 sys.path.insert(0, os.path.join(_ROOT, "data"))
 
 import collect  # noqa: E402
+import i18n  # noqa: E402
 import meteogram  # noqa: E402
 
-# Languages to render, in display order. The first is the site default and is
-# written to ``index.html``; the rest get ``<lang>.html``.
-LANGS = ["en", "cs"]
-
-# Display name shown in the language switcher.
-LANG_NAME = {"en": "English", "cs": "Čeština"}
-
-# Per-language HTML chrome (everything outside the figures). The figure text
-# itself is translated in ``meteogram.STRINGS``.
-HTML_STRINGS = {
-    "en": {
-        "title": "ECMWF ENS 2 m Temperature Meteogram",
-        "subtitle_tail": "ECMWF IFS 0.25° ensemble, model-native 3-hourly",
-        "alt_meteo": "ECMWF ENS 2 m temperature meteogram",
-        "label_city": "City",
-        "label_updated": "Last updated:",
-        "label_refresh": "Refreshes every 3 hours",
-        "alt_evo": "ECMWF ENS median evolution: how the 2 m temperature "
-                   "ensemble median for each time shifted across successive "
-                   "model runs",
-        "caption_evo": "How the ensemble <strong>median</strong> for each "
-                       "time has shifted across successive model runs, "
-                       "colour-coded by run initialisation time. Builds up as "
-                       "runs are archived.",
-        "footer": 'Data from the '
-                  '<a href="https://open-meteo.com/en/docs/ensemble-api">'
-                  'Open-Meteo Ensemble API</a> (CC BY 4.0), based on the '
-                  'ECMWF IFS ensemble (ECMWF data, CC BY 4.0). Source on '
-                  '<a href="https://github.com/jhrmnn/weather">GitHub</a>.',
-    },
-    "cs": {
-        "title": "ECMWF ENS meteogram teploty ve 2 m",
-        "subtitle_tail": "soubor ECMWF IFS 0.25°, nativní 3hodinové "
-                         "rozlišení modelu",
-        "alt_meteo": "Meteogram teploty ve 2 m ECMWF ENS",
-        "label_city": "Město",
-        "label_updated": "Naposledy aktualizováno:",
-        "label_refresh": "Aktualizuje se každé 3 hodiny",
-        "alt_evo": "Vývoj mediánu ECMWF ENS: jak se medián souboru teploty "
-                   "ve 2 m pro každý čas posouval během po sobě jdoucích "
-                   "běhů modelu",
-        "caption_evo": "Jak se <strong>medián</strong> souboru pro každý čas "
-                       "posouval během po sobě jdoucích běhů modelu, barevně "
-                       "odlišeno podle času inicializace běhu. Doplňuje se s "
-                       "přibývajícími běhy.",
-        "footer": 'Data z '
-                  '<a href="https://open-meteo.com/en/docs/ensemble-api">'
-                  'Open-Meteo Ensemble API</a> (CC BY 4.0), založeno na '
-                  'souboru ECMWF IFS (data ECMWF, CC BY 4.0). Zdrojový kód na '
-                  '<a href="https://github.com/jhrmnn/weather">GitHubu</a>.',
-    },
-}
+# Languages to render, in display order (the first is the site default, written
+# to ``index.html``); display names for the language switcher; and the
+# per-language HTML chrome (everything outside the figures). All three come from
+# the ``i18n`` catalogues, the same source as the figure text.
+LANGS = i18n.LANGS
+LANG_NAME = i18n.LANG_NAME
+HTML_STRINGS = i18n.HTML_STRINGS
 
 
 def _page_name(lang: str) -> str:
