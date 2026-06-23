@@ -60,6 +60,12 @@ BOX_GREY = "#D9D9D9"  # ensemble box fill (light neutral grey)
 CONTROL_BLUE = "#0000FF"  # control forecast line
 MEDIAN_RED = "#FF0000"   # median tracking line
 
+# Per-model line colours for the model-comparison plot, applied in registry
+# order (see ``collect.MODELS``). Okabe–Ito palette — distinct and
+# colour-blind-safe — so each model keeps a stable colour across cities.
+COMPARE_COLORS = ["#0072B2", "#E69F00", "#009E73", "#CC79A7",
+                  "#D55E00", "#56B4E9", "#F0E442"]
+
 # --- Internationalisation -------------------------------------------------
 # Both figures can be rendered in English ("en") or Czech ("cs"). All
 # user-visible strings, plus locale-dependent date names, live in the ``i18n``
@@ -490,6 +496,94 @@ def plot_median_evolution(runs: list[EnsembleData], output: str,
     ax.set_title(f"{line1}\n{line2}", fontsize=9.5)
 
     fig.text(0.005, 0.005, _tr(lang, "footer").format(model=model_label),
+             fontsize=7, color="0.5", ha="left", va="bottom")
+
+    fig.tight_layout(rect=(0, 0.02, 1, 0.96))
+    fig.savefig(output, dpi=140)
+    plt.close(fig)
+
+
+def plot_model_comparison(
+        series: list[tuple[str, str, EnsembleData]], output: str,
+        station_name: str | None = None, station_height: float | None = None,
+        lang: str = DEFAULT_LANG) -> None:
+    """Plot each model's latest-run ensemble median on a single axis.
+
+    ``series`` is a list of ``(model_label, colour, EnsembleData)`` tuples — the
+    latest run of each model at one point — in display order. Only the ensemble
+    median (50th percentile across members) is drawn, one line per model, so the
+    models can be compared at a glance for a given city. Each model spans its own
+    forecast horizon and native step; the axis covers their union.
+    """
+    fig, ax = plt.subplots(figsize=(16, 5.6), dpi=140)
+
+    units = series[0][2].units
+    all_x: list[np.ndarray] = []
+    all_med: list[float] = []
+    for label, color, d in series:
+        p50 = np.nanpercentile(d.members, 50, axis=0)
+        x = mdates.date2num(d.times.astype("datetime64[s]").astype(dt.datetime))
+        all_x.append(x)
+        all_med.extend([np.nanmin(p50), np.nanmax(p50)])
+        x_fine, p50_fine = _smooth_track(x, p50)
+        ax.plot(x_fine, p50_fine, color=color, linewidth=2.0,
+                solid_capstyle="round", label=label)
+
+    # --- axes cosmetics -------------------------------------------------
+    # The x-axis spans the union of every model's window (they share a start but
+    # reach different horizons); ``spacing`` is the finest native step present.
+    x_lo = min(float(x[0]) for x in all_x)
+    x_hi = max(float(x[-1]) for x in all_x)
+    spacing = min(float(np.median(np.diff(x))) for x in all_x)
+    ax.set_xlim(x_lo - spacing, x_hi + spacing)
+    ax.xaxis_date()
+    ax.xaxis.set_major_locator(mdates.DayLocator())
+    ax.xaxis.set_major_formatter(
+        mticker.FuncFormatter(lambda v, _pos: _fmt_day_tick(
+            mdates.num2date(v), lang)))
+    ax.tick_params(axis="x", length=0)
+    plt.setp(ax.get_xticklabels(), ha="center")
+
+    ax.yaxis.set_major_locator(plt.MultipleLocator(2))
+    ax.yaxis.set_minor_locator(plt.MultipleLocator(1))
+    lo = np.floor((min(all_med) - 1) / 2) * 2
+    hi = np.ceil((max(all_med) + 1) / 2) * 2
+    ax.set_ylim(lo, hi)
+
+    ax.grid(True, which="major", axis="both", linestyle=(0, (3, 3)),
+            color="0.65", linewidth=0.6)
+    ax.set_axisbelow(True)
+    ax.set_ylabel(_tr(lang, "ylabel").format(units=units))
+
+    # Month labels + year beneath the day ticks (union range).
+    months = np.arange(np.datetime64(mdates.num2date(x_lo).date(), "M"),
+                       np.datetime64(mdates.num2date(x_hi).date(), "M") + 1)
+    for m in months:
+        m0 = mdates.date2num(m.astype("datetime64[D]").astype(dt.date))
+        m1 = mdates.date2num((m + 1).astype("datetime64[D]").astype(dt.date))
+        centre = min(max((m0 + m1) / 2, x_lo), x_hi)
+        ax.text(centre, -0.075, _MONTH_ABBR[lang][m.astype(dt.date).month - 1],
+                transform=ax.get_xaxis_transform(),
+                ha="center", va="top", fontsize=9, color="0.25")
+    ax.text(1.0, -0.075, str(mdates.num2date(x_hi).year),
+            transform=ax.transAxes, ha="right", va="top", fontsize=9,
+            color="0.25")
+
+    ax.legend(loc="upper right", fontsize=8, framealpha=0.92)
+
+    # Titles.
+    coords = _format_coords(series[0][2].requested_lat,
+                            series[0][2].requested_lon)
+    where = f"{station_name + ' ' if station_name else ''}{coords}"
+    if station_height is not None:
+        where += f" ({station_height:g} m)"
+    fig.suptitle(_tr(lang, "comparison_suptitle"), x=0.5, y=0.98,
+                 fontsize=14, ha="center")
+    line1 = _tr(lang, "comparison_line1").format(where=where)
+    line2 = _tr(lang, "comparison_line2")
+    ax.set_title(f"{line1}\n{line2}", fontsize=9.5)
+
+    fig.text(0.005, 0.005, _tr(lang, "footer_multi"),
              fontsize=7, color="0.5", ha="left", va="bottom")
 
     fig.tight_layout(rect=(0, 0.02, 1, 0.96))

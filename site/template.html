@@ -25,9 +25,11 @@
       display: flex; align-items: center; justify-content: space-between;
       gap: 1rem; margin-bottom: .5rem;
     }
-    .selectors {
-      display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1.25rem;
+    .model-bar {
+      display: flex; flex-wrap: wrap; align-items: baseline;
+      gap: .35rem 1rem; margin: 1.5rem 0 0;
     }
+    .model-bar .model-tail { font-size: .9rem; color: #6a7077; }
     .city-select {
       display: inline-flex; align-items: center; gap: .4rem; font-size: .9rem;
     }
@@ -72,22 +74,33 @@
 <body>
   <div class="wrap">
     <div class="topbar">
-      <div class="selectors">
-        <label class="city-select">
-          <span class="city-label">__LABEL_CITY__</span>
-          <select id="city" aria-label="__LABEL_CITY__">__CITY_OPTIONS__</select>
-        </label>
-        <label class="city-select">
-          <span class="city-label">__LABEL_MODEL__</span>
-          <select id="model" aria-label="__LABEL_MODEL__">__MODEL_OPTIONS__</select>
-        </label>
-      </div>
+      <label class="city-select">
+        <span class="city-label">__LABEL_CITY__</span>
+        <select id="city" aria-label="__LABEL_CITY__">__CITY_OPTIONS__</select>
+      </label>
       <nav class="lang">__LANG_NAV__</nav>
     </div>
     <header>
       <h1>__H1__</h1>
-      <p><span id="city-sub">__CITY_SUB__</span> · <span id="model-tail">__SUBTITLE_TAIL__</span></p>
+      <p id="city-sub">__CITY_SUB__</p>
     </header>
+
+    <!-- Model comparison (depends on the city only). -->
+    <div class="card">
+      <img id="integration-img" src="__INTEG_SRC__" alt="__ALT_INTEG__">
+      <div class="meta">
+        <span>__CAPTION_INTEG__</span>
+      </div>
+    </div>
+
+    <!-- Model selector: drives the two figures below (city + model). -->
+    <div class="model-bar">
+      <label class="city-select">
+        <span class="city-label">__LABEL_MODEL__</span>
+        <select id="model" aria-label="__LABEL_MODEL__">__MODEL_OPTIONS__</select>
+      </label>
+      <span id="model-tail" class="model-tail">__SUBTITLE_TAIL__</span>
+    </div>
 
     <div class="card">
       <img id="meteogram-img" src="__METEO_SRC__" alt="__ALT_METEO__">
@@ -127,6 +140,7 @@
       var MODEL_KEY = "weather-model";
       var citySel = document.getElementById("city");
       var modelSel = document.getElementById("model");
+      var integImg = document.getElementById("integration-img");
       var meteoImg = document.getElementById("meteogram-img");
       var evoImg = document.getElementById("evolution-img");
       var citySub = document.getElementById("city-sub");
@@ -191,6 +205,7 @@
         modelId = modelOf(citySlug, modelId);
         var city = CITIES[citySlug];
         var m = city.models[modelId];
+        integImg.src = city.integ;
         meteoImg.src = m.meteo;
         evoImg.src = m.evo;
         citySub.textContent = city.sub;

@@ -129,7 +129,6 @@ MODELS = [
     Model("ecmwf_aifs025", "ecmwf_aifs025_ensemble", "ECMWF AIFS 0.25°", "6h", 11),
     Model("ncep_gefs025", "ncep_gefs025", "NOAA GEFS 0.25°", "3h", 10),
     Model("icon_eu_eps", "dwd_icon_eu_eps", "DWD ICON-EU EPS", "1h", 5),
-    Model("icon_d2_eps", "dwd_icon_d2_eps", "DWD ICON-D2 EPS", "1h", 2),
 ]
 
 # The site default and the meteogram CLI's fallback model.

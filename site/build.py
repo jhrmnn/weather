@@ -162,6 +162,11 @@ def main() -> None:
                         if collect.DEFAULT_MODEL.id in default_city_models
                         else next(iter(default_city_models)))
 
+    # Stable comparison-plot colour per model (by registry order), so a model
+    # keeps the same colour across cities even when some lack it.
+    model_color = {m.id: meteogram.COMPARE_COLORS[i % len(meteogram.COMPARE_COLORS)]
+                   for i, m in enumerate(collect.MODELS)}
+
     here = os.path.dirname(os.path.abspath(__file__))
     with open(os.path.join(here, "template.html")) as fh:
         template = fh.read()
@@ -172,14 +177,24 @@ def main() -> None:
     for lang in LANGS:
         s = HTML_STRINGS[lang]
 
-        # One figure pair per city per model per language (text/dates localised).
+        # Per city: one model-comparison ("integration") figure plus one
+        # ensemble/history figure pair per model (text/dates localised).
         # ``city_data`` drives the client-side selectors: each city slug maps to
-        # its city subtitle and a per-model map of localised image URLs and the
-        # model-specific subtitle tail.
+        # its subtitle, the comparison image (city-level), and a per-model map of
+        # localised image URLs and the model-specific subtitle tail.
         city_data = {}
         for loc, per_model in cities:
             slug = _slug(loc.name)
             coords = meteogram._format_coords(loc.latitude, loc.longitude)
+
+            # Model-comparison plot: each model's latest-run median on one axis.
+            integ_name = f"integration.{slug}.{lang}.png"
+            integ_path = os.path.join(args.output_dir, integ_name)
+            series = [(model.label, model_color[model_id], data)
+                      for model_id, (model, data, runs) in per_model.items()]
+            meteogram.plot_model_comparison(series, integ_path,
+                                            station_name=loc.name, lang=lang)
+
             model_map = {}
             for model_id, (model, data, runs) in per_model.items():
                 image_name = f"meteogram.{slug}.{model_id}.{lang}.png"
@@ -201,6 +216,7 @@ def main() -> None:
                 }
             city_data[slug] = {
                 "sub": f"{loc.name} ({coords})",
+                "integ": f"{integ_name}?v={_version(integ_path)}",
                 "models": model_map,
             }
 
@@ -220,12 +236,15 @@ def main() -> None:
             "__CITY_SUB__": default_city["sub"],
             "__SUBTITLE_TAIL__": default["tail"],
             "__ALT_METEO__": s["alt_meteo"],
+            "__ALT_INTEG__": s["alt_integ"],
+            "__CAPTION_INTEG__": s["caption_integ"],
             "__LABEL_UPDATED__": s["label_updated"],
             "__UPDATED__": updated,
             "__LABEL_REFRESH__": s["label_refresh"],
             "__ALT_EVO__": s["alt_evo"],
             "__CAPTION_EVO__": s["caption_evo"],
             "__FOOTER__": s["footer"],
+            "__INTEG_SRC__": default_city["integ"],
             "__METEO_SRC__": default["meteo"],
             "__EVO_SRC__": default["evo"],
             "__CITY_DATA__": json.dumps(city_data),

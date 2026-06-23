@@ -11,10 +11,9 @@ at each model's **native** temporal resolution.
 * Fetches an **ensemble model** for a single point. The default is the
   **ECMWF IFS 0.25° ensemble** (`ecmwf_ifs025`); the site also offers
   **ECMWF AIFS 0.25°** (`ecmwf_aifs025`), **NOAA GEFS 0.25°**
-  (`ncep_gefs025`), **DWD ICON-EU EPS** (`icon_eu_eps`) and **DWD ICON-D2
-  EPS** (`icon_d2_eps`). The set of models lives in `MODELS` in
-  [`data/collect.py`](data/collect.py); add one there to grow the archive and
-  the site's model selector.
+  (`ncep_gefs025`) and **DWD ICON-EU EPS** (`icon_eu_eps`). The set of models
+  lives in `MODELS` in [`data/collect.py`](data/collect.py); add one there to
+  grow the archive and the site's model selector.
 * Uses **all the ensemble members** the model returns — the control forecast
   plus the perturbed members (e.g. 51 total for ECMWF IFS, 31 for NOAA GEFS).
 * Requests `temporal_resolution=native`, the model's own step (3-hourly for the
@@ -35,9 +34,17 @@ This matches [ECMWF's own meteograms](https://confluence.ecmwf.int/display/FUG/S
 | thin whisker line  | minimum and maximum across the ensemble   |
 | blue line          | control forecast                          |
 
+## Model-comparison plot
+
+A **model-comparison** ("integration") plot draws the **ensemble median of each
+model's latest run on a single axis**, one colour-coded line per model, so the
+models can be compared at a glance for a given city. It depends only on the
+selected city (each line spans its own model's horizon and native step), and
+sits above the per-model figures below.
+
 ## Median-evolution plot
 
-A second plot shows **how the ensemble median for each time has shifted from
+A further plot shows **how the ensemble median for each time has shifted from
 one model run to the next** — the "is the forecast converging?" view.
 
 ![Example median evolution](examples/ecmwf_median_evolution.png)
@@ -103,12 +110,15 @@ builds the site, and deploys it, in four jobs:
   **latest archived data** (no live fetching) for **every archived city × model**
   in **both English and Czech**, embedding them into a small **bilingual** static
   site ([`site/template.html`](site/template.html)), and uploads the artifacts.
-  **Top-level city and model dropdowns** switch between combinations client-side
-  (no page reload); a model with no data for a city is disabled for it, and both
-  selections are remembered across the language switch. English is served as
-  `index.html` (the site default) and Czech as `cs.html`; each page links to the
-  other, and each city/model/language gets its own figures
-  (`meteogram.<city>.<model>.<lang>.png`,
+  The page is laid out **city → model-comparison plot → model → ensemble &
+  history plots**: a top-level **city dropdown** drives everything (and the
+  city-level comparison plot), and a **model dropdown** above the per-model
+  figures selects which model's ensemble/history is shown. Both switch
+  client-side (no page reload); a model with no data for a city is disabled for
+  it, and both selections are remembered across the language switch. English is
+  served as `index.html` (the site default) and Czech as `cs.html`; each page
+  links to the other, and each combination gets its own figures
+  (`integration.<city>.<lang>.png`, `meteogram.<city>.<model>.<lang>.png`,
   `evolution.<city>.<model>.<lang>.png`) with localised labels, titles, and date
   names. The cities mirror `LOCATIONS` and the models `MODELS` in
   [`data/collect.py`](data/collect.py).
