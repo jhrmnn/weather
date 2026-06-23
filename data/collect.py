@@ -180,6 +180,22 @@ def load_latest(data_dir: str, loc: Location) -> dict:
         return json.load(fh)
 
 
+def load_all(data_dir: str, loc: Location) -> list[dict]:
+    """Load every archived run for ``loc``, oldest run first.
+
+    Files are keyed by run init time, so sorting by name yields chronological
+    order. Returns an empty list when nothing is archived yet.
+    """
+    d = location_dir(data_dir, loc)
+    if not os.path.isdir(d):
+        return []
+    payloads = []
+    for name in sorted(f for f in os.listdir(d) if is_run_file(f)):
+        with open(os.path.join(d, name)) as fh:
+            payloads.append(json.load(fh))
+    return payloads
+
+
 def _prune_legacy(loc_dir: str) -> None:
     """Drop pre-init-time-keyed archive files (one-time key migration).
 

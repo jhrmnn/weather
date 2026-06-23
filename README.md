@@ -22,11 +22,26 @@ This matches [ECMWF's own meteograms](https://confluence.ecmwf.int/display/FUG/S
 
 | Element            | Meaning                                   |
 | ------------------ | ----------------------------------------- |
-| wide cyan box      | 25th–75th percentile (interquartile range)|
-| narrow cyan box    | 10th–25th and 75th–90th percentiles       |
+| wide grey box      | 25th–75th percentile (interquartile range)|
+| narrow grey box    | 10th–25th and 75th–90th percentiles       |
 | horizontal bar     | median (50th percentile)                  |
 | thin whisker line  | minimum and maximum across the ensemble   |
 | blue line          | control forecast                          |
+
+## Median-evolution plot
+
+A second plot shows **how the ensemble median for each time has shifted from
+one model run to the next** — the "is the forecast converging?" view.
+
+![Example median evolution](examples/ecmwf_median_evolution.png)
+
+Each line is one archived run's median (50th percentile across the 51 members),
+drawn against valid time and **colour-coded by the run's initialisation time**
+(see the colorbar); the most recent run is drawn boldest, on top. Unlike the
+box-and-whisker meteogram — which renders the single latest run — this plot is
+built from **every run in the [`data` branch](#raw-data-archive-data-branch)
+archive**, so it fills in and gets more informative as runs accumulate (a new
+ECMWF run roughly every 6 h).
 
 ## Usage
 
