@@ -4,8 +4,9 @@
 name = "Čeština"
 
 [strings]
-meteogram_suptitle = "Meteogram ECMWF ENS – teplota ve 2 m"
-evolution_suptitle = "Vývoj mediánu ECMWF ENS – teplota ve 2 m"
+meteogram_suptitle = "Meteogram souboru – teplota ve 2 m"
+evolution_suptitle = "Vývoj mediánu souboru – teplota ve 2 m"
+comparison_suptitle = "Porovnání modelů – teplota ve 2 m"
 ylabel = "Teplota ve 2 m ({units})"
 legend_median = "Medián"
 legend_control = "Kontrolní předpověď"
@@ -15,22 +16,35 @@ glyph_min = "min"
 glyph_median = "medián"
 glyph_control = "kontrolní"
 colorbar = "Běh předpovědi (inicializace, UTC)"
-footer = "Data: Open-Meteo Ensemble API (CC BY 4.0) – soubor ECMWF IFS"
-meteogram_line1 = "{where}  ·  soubor ECMWF IFS 0.25° ({n} členů), nativní 3hodinové rozlišení modelu"
+footer = "Data: Open-Meteo Ensemble API (CC BY 4.0) – soubor {model}"
+footer_multi = "Data: Open-Meteo Ensemble API (CC BY 4.0)"
+meteogram_line1 = "{where}  ·  soubor {model} ({n} členů), {cadence}"
 meteogram_line2 = "Kontrolní předpověď a rozdělení ENS – {init}"
-evolution_line1 = "{where}  ·  medián souboru ECMWF IFS 0.25° (50. percentil) podle běhu modelu, nativní 3hodinové rozlišení modelu"
+evolution_line1 = "{where}  ·  medián souboru {model} (50. percentil) podle běhu modelu, {cadence}"
 evolution_line2 = "Jak se medián předpovědi pro každý čas posouval během {runs} – {span}"
+comparison_line1 = "{where}  ·  medián souboru (50. percentil) podle modelu"
+comparison_line2 = "Poslední dostupný běh každého modelu, porovnaný na jedné ose"
+
+# Lokalizované fráze o nativním kroku modelu, vybírané podle ``cadence`` modelu
+# (viz ``collect.Model``). Dosazují se do zástupných symbolů ``{cadence}`` výše.
+[cadence]
+"1h" = "nativní hodinové rozlišení modelu"
+"3h" = "nativní 3hodinové rozlišení modelu"
+"6h" = "nativní 6hodinové rozlišení modelu"
 
 [html]
-title = "ECMWF ENS meteogram teploty ve 2 m"
-subtitle_tail = "soubor ECMWF IFS 0.25°, nativní 3hodinové rozlišení modelu"
-alt_meteo = "Meteogram teploty ve 2 m ECMWF ENS"
+title = "Meteogram teploty ve 2 m ze souboru"
+subtitle_tail = "soubor {model}, {cadence}"
+alt_meteo = "Meteogram teploty ve 2 m ze souboru"
+alt_integ = "Porovnání modelů: medián souboru teploty ve 2 m z posledního běhu každého modelu na jedné ose"
 label_city = "Město"
+label_model = "Model"
 label_updated = "Naposledy aktualizováno:"
 label_refresh = "Aktualizuje se každé 3 hodiny"
-alt_evo = "Vývoj mediánu ECMWF ENS: jak se medián souboru teploty ve 2 m pro každý čas posouval během po sobě jdoucích běhů modelu"
+caption_integ = "<strong>Medián</strong> souboru (50. percentil) každého modelu z jeho posledního dostupného běhu, vykreslený na jedné ose pro porovnání modelů pro toto město. Níže vyberte model pro jeho celý soubor a historii běhů."
+alt_evo = "Vývoj mediánu souboru: jak se medián souboru teploty ve 2 m pro každý čas posouval během po sobě jdoucích běhů modelu"
 caption_evo = "Jak se <strong>medián</strong> souboru pro každý čas posouval během po sobě jdoucích běhů modelu, barevně odlišeno podle času inicializace běhu. Doplňuje se s přibývajícími běhy."
-footer = 'Data z <a href="https://open-meteo.com/en/docs/ensemble-api">Open-Meteo Ensemble API</a> (CC BY 4.0), založeno na souboru ECMWF IFS (data ECMWF, CC BY 4.0). Zdrojový kód na <a href="https://github.com/jhrmnn/weather">GitHubu</a>.'
+footer = 'Data z <a href="https://open-meteo.com/en/docs/ensemble-api">Open-Meteo Ensemble API</a> (CC BY 4.0), založeno na souborech modelů ECMWF, NOAA a DWD (CC BY 4.0). Zdrojový kód na <a href="https://github.com/jhrmnn/weather">GitHubu</a>.'
 
 # Czech month names take the genitive in date phrases ("23. června").
 [dates]

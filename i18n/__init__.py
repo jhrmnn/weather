@@ -53,6 +53,18 @@ def tr(lang: str, key: str) -> str:
         key, STRINGS[DEFAULT_LANG][key])
 
 
+# Localised "model-native …" cadence phrases, keyed by the cadence id carried on
+# each ``collect.Model`` ("1h"/"3h"/"6h"). The wording is translated, so it lives
+# here rather than being passed as raw text from the data layer.
+CADENCE = {lang: cat["cadence"] for lang, cat in _CATALOGUES.items()}
+
+
+def cadence(lang: str, key: str) -> str:
+    """Localised cadence phrase for a model's cadence id, with default fallback."""
+    return CADENCE.get(lang, CADENCE[DEFAULT_LANG]).get(
+        key, CADENCE[DEFAULT_LANG][key])
+
+
 def _plural_category(n: int, lang: str) -> str:
     """CLDR-style plural category for ``n``. Czech distinguishes a ``few`` form."""
     if lang == "cs":
