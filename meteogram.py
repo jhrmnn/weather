@@ -305,25 +305,12 @@ def _draw_legend_glyph(ax: plt.Axes, lang: str = DEFAULT_LANG) -> None:
     ax.bar(xc, levels["75%"] - levels["25%"], bottom=levels["25%"], width=2.0,
            color=BOX_GREY, edgecolor="black", linewidth=0.7)
     ax.hlines(levels["median"], xc - 1.0, xc + 1.0, color="black", linewidth=1.1)
-    # Median tracking line key (thick red, drawn through the median level).
-    ax.plot([xc - 1.0, xc + 1.0], [levels["median"], levels["median"]],
-            color=MEDIAN_RED, linewidth=2.6, solid_capstyle="round")
     for key, y in levels.items():
         ax.text(1.7, y, label_for.get(key, key), va="center", ha="left",
                 fontsize=6.5)
 
-    # Control forecast key.
-    ax.plot([-1.2, 0.6], [-1.8, -1.8], color=CONTROL_BLUE, linewidth=1.6)
-    ax.text(1.7, -1.8, _tr(lang, "glyph_control"), va="center", ha="left",
-            fontsize=6.5, color=CONTROL_BLUE)
-    # Median tracking line key entry.
-    ax.plot([-1.2, 0.6], [-3.0, -3.0], color=MEDIAN_RED, linewidth=2.6,
-            solid_capstyle="round")
-    ax.text(1.7, -3.0, _tr(lang, "glyph_median"), va="center", ha="left",
-            fontsize=6.5, color=MEDIAN_RED)
-
     ax.set_xlim(-2.2, 5.0)
-    ax.set_ylim(-4.0, 9.2)
+    ax.set_ylim(-1.0, 9.2)
     ax.set_facecolor("white")
     ax.patch.set_alpha(0.92)
     for spine in ax.spines.values():
