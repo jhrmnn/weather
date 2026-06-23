@@ -22,8 +22,8 @@ This matches [ECMWF's own meteograms](https://confluence.ecmwf.int/display/FUG/S
 
 | Element            | Meaning                                   |
 | ------------------ | ----------------------------------------- |
-| wide cyan box      | 25th–75th percentile (interquartile range)|
-| narrow cyan box    | 10th–25th and 75th–90th percentiles       |
+| wide grey box      | 25th–75th percentile (interquartile range)|
+| narrow grey box    | 10th–25th and 75th–90th percentiles       |
 | horizontal bar     | median (50th percentile)                  |
 | thin whisker line  | minimum and maximum across the ensemble   |
 | blue line          | control forecast                          |

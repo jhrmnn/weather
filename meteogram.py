@@ -53,7 +53,7 @@ N_PERTURBED = 50  # perturbed members; the control is the base series (member 0)
 FINE_STEPS_PER_INTERVAL = 12
 
 # ECMWF-style colours.
-CYAN = "#00FFFF"      # ensemble box fill
+BOX_GREY = "#D9D9D9"  # ensemble box fill (light neutral grey)
 CONTROL_BLUE = "#0000FF"  # control forecast line
 MEDIAN_RED = "#FF0000"   # median tracking line
 
@@ -171,9 +171,9 @@ def _draw_legend_glyph(ax: plt.Axes) -> None:
     xc = 0.0
     ax.vlines(xc, levels["min"], levels["max"], color="black", linewidth=0.9)
     ax.bar(xc, levels["90%"] - levels["10%"], bottom=levels["10%"], width=1.0,
-           color=CYAN, edgecolor="black", linewidth=0.7)
+           color=BOX_GREY, edgecolor="black", linewidth=0.7)
     ax.bar(xc, levels["75%"] - levels["25%"], bottom=levels["25%"], width=2.0,
-           color=CYAN, edgecolor="black", linewidth=0.7)
+           color=BOX_GREY, edgecolor="black", linewidth=0.7)
     ax.hlines(levels["median"], xc - 1.0, xc + 1.0, color="black", linewidth=1.1)
     # Median tracking line key (thick red, drawn through the median level).
     ax.plot([xc - 1.0, xc + 1.0], [levels["median"], levels["median"]],
@@ -228,10 +228,10 @@ def plot(data: EnsembleData, output: str, station_name: str | None = None,
     # Whisker (min->max); the boxes drawn on top hide its central section.
     ax.vlines(x, p_min, p_max, color="black", linewidth=0.7, zorder=2)
     # Narrow boxes: 10th-90th percentile.
-    ax.bar(x, p90 - p10, bottom=p10, width=narrow, color=CYAN,
+    ax.bar(x, p90 - p10, bottom=p10, width=narrow, color=BOX_GREY,
            edgecolor="black", linewidth=0.5, zorder=3, align="center")
     # Wide box: 25th-75th percentile.
-    ax.bar(x, p75 - p25, bottom=p25, width=wide, color=CYAN,
+    ax.bar(x, p75 - p25, bottom=p25, width=wide, color=BOX_GREY,
            edgecolor="black", linewidth=0.5, zorder=4, align="center")
     # Median.
     ax.hlines(p50, x - wide / 2, x + wide / 2, color="black", linewidth=0.9,
