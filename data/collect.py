@@ -11,9 +11,9 @@ changes, which is what lets CI push to the ``data`` branch only when there is
 something new.
 
 How often the collector runs is controlled by CI, not here: the workflow fetches
-at most once an hour (it skips a run when the workflow last ran under an hour
-ago) and always on manual dispatch. This module just fetches when invoked and
-archives whatever forecast content is new.
+at most once every 50 minutes (it skips a run when the workflow last fetched
+under 50 minutes ago) and always on manual dispatch. This module just fetches
+when invoked and archives whatever forecast content is new.
 
 Layout::
 

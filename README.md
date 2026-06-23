@@ -123,8 +123,8 @@ builds the site, and deploys it, in four jobs:
   names. The cities mirror `LOCATIONS` and the models `MODELS` in
   [`data/collect.py`](data/collect.py).
 * **deploy-pages** — publishes to **GitHub Pages** with `actions/deploy-pages`,
-  on the production triggers only: every **three hours**
-  (`cron: "0 */3 * * *"`), on every **push to `main`**, and on demand via
+  on the production triggers only: every **hour**
+  (`cron: "0 * * * *"`), on every **push to `main`**, and on demand via
   **manual dispatch** (the *Run workflow* button).
 * **deploy-cloudflare** — on every **pull request**, deploys to **Cloudflare
   Pages** as a *branch deployment*, so each PR gets its own dedicated preview at
@@ -132,8 +132,8 @@ builds the site, and deploys it, in four jobs:
   URL is posted as a comment on the PR and updated on every push.
 
 Splitting **fetch** from **build** means the slow, rate-limited API call is
-throttled to at most once an hour and the archived raw data is the single source
-of truth the site renders from.
+throttled to at most once every 50 minutes and the archived raw data is the
+single source of truth the site renders from.
 
 ### Enabling GitHub Pages
 
