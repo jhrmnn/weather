@@ -50,6 +50,7 @@ prague = "Prague"
 [html]
 title = "Ensemble 2 m Temperature Meteogram"
 subtitle_tail = "{model} ensemble, {cadence}"
+maps_link_title = "Open the model grid point on Google Maps – where the forecast is actually computed"
 alt_meteo = "Ensemble 2 m temperature meteogram"
 alt_integ = "Model comparison: the 2 m temperature ensemble median of each model's latest run, drawn on one axis"
 label_city = "City"

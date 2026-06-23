@@ -25,6 +25,7 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import hashlib
+import html
 import json
 import os
 import sys
@@ -93,6 +94,20 @@ def _version(path: str) -> str:
     """
     with open(path, "rb") as fh:
         return hashlib.sha256(fh.read()).hexdigest()[:12]
+
+
+def _maps_link(lat: float, lon: float, title: str) -> str:
+    """HTML link from a model grid point's coordinates to Google Maps.
+
+    The figures (and the subtitle) snap the request to the model's native grid,
+    so the point actually forecast is not the city centre. Linking the displayed
+    coordinates to a map lets a reader see exactly where that grid point lies.
+    The grid point is model-specific, so this is built per model.
+    """
+    coords = meteogram._format_coords(lat, lon)
+    url = f"https://www.google.com/maps?q={lat:.4f},{lon:.4f}"
+    return (f'<a href="{url}" target="_blank" rel="noopener" '
+            f'title="{html.escape(title, quote=True)}">{coords}</a>')
 
 
 def _city_options(cities: list, default_slug: str, lang: str) -> str:
@@ -193,7 +208,7 @@ def main() -> None:
             # Localised city name for figures and chrome; the slug stays
             # language-independent so URLs and the remembered selection match.
             name = i18n.city_name(lang, slug, loc.name)
-            coords = meteogram._format_coords(loc.latitude, loc.longitude)
+            name_html = html.escape(name)
 
             # Model-comparison plot: each model's latest-run median on one axis.
             integ_name = f"integration.{slug}.{lang}.png"
@@ -217,13 +232,18 @@ def main() -> None:
                     model_label=model.label, cadence=model.cadence)
                 tail = s["subtitle_tail"].format(
                     model=model.label, cadence=i18n.cadence(lang, model.cadence))
+                # The grid point the API snapped to is model-specific, so the
+                # subtitle (city name + a Google-Maps link to that point) is
+                # built per model.
+                coords_link = _maps_link(data.latitude, data.longitude,
+                                         s["maps_link_title"])
                 model_map[model_id] = {
                     "tail": tail,
+                    "sub": f"{name_html} ({coords_link})",
                     "meteo": f"{image_name}?v={_version(image_path)}",
                     "evo": f"{evolution_name}?v={_version(evolution_path)}",
                 }
             city_data[slug] = {
-                "sub": f"{name} ({coords})",
                 "integ": f"{integ_name}?v={_version(integ_path)}",
                 "models": model_map,
             }
@@ -241,7 +261,7 @@ def main() -> None:
                                               default_slug, lang),
             "__MODEL_OPTIONS__": _model_options(models_present,
                                                 default_model_id),
-            "__CITY_SUB__": default_city["sub"],
+            "__CITY_SUB__": default["sub"],
             "__SUBTITLE_TAIL__": default["tail"],
             "__ALT_METEO__": s["alt_meteo"],
             "__ALT_INTEG__": s["alt_integ"],
@@ -259,13 +279,13 @@ def main() -> None:
             "__DEFAULT_CITY__": default_slug,
             "__DEFAULT_MODEL__": default_model_id,
         }
-        html = template
+        page_html = template
         for token, value in replacements.items():
-            html = html.replace(token, value)
+            page_html = page_html.replace(token, value)
 
         page = os.path.join(args.output_dir, _page_name(lang))
         with open(page, "w") as fh:
-            fh.write(html)
+            fh.write(page_html)
         written.append(page)
 
     print(f"Built bilingual {len(cities)}-city × {len(models_present)}-model "
