@@ -40,11 +40,17 @@ def main() -> None:
 
     os.makedirs(args.output_dir, exist_ok=True)
     image_path = os.path.join(args.output_dir, "meteogram.png")
+    evolution_path = os.path.join(args.output_dir, "evolution.png")
 
     loc = collect.Location(args.latitude, args.longitude, args.name)
     payload = collect.load_latest(args.data_dir, loc)
     data = meteogram.parse_payload(payload, args.latitude, args.longitude)
     meteogram.plot(data, image_path, station_name=args.name)
+
+    # Median-evolution plot: every archived run's median, colour-coded by run.
+    runs = [meteogram.parse_payload(p, args.latitude, args.longitude)
+            for p in collect.load_all(args.data_dir, loc)]
+    meteogram.plot_median_evolution(runs, evolution_path, station_name=args.name)
 
     here = os.path.dirname(os.path.abspath(__file__))
     with open(os.path.join(here, "template.html")) as fh:
@@ -52,20 +58,23 @@ def main() -> None:
 
     # Cache-busting token derived from the image contents: the ``?v=`` query
     # string changes only when the figure actually changes, so browsers fetch a
-    # fresh image instead of serving a stale cached ``meteogram.png`` while still
-    # caching an unchanged one. (GitHub Pages ignores custom cache headers, so a
+    # fresh image instead of serving a stale cached image while still caching an
+    # unchanged one. (GitHub Pages ignores custom cache headers, so a
     # content-hashed URL is the portable fix.)
-    with open(image_path, "rb") as fh:
-        img_version = hashlib.sha256(fh.read()).hexdigest()[:12]
+    def _version(path: str) -> str:
+        with open(path, "rb") as fh:
+            return hashlib.sha256(fh.read()).hexdigest()[:12]
 
     updated = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     html = template.replace("__UPDATED__", updated)
-    html = html.replace("__IMG_VERSION__", img_version)
+    html = html.replace("__IMG_VERSION__", _version(image_path))
+    html = html.replace("__EVO_VERSION__", _version(evolution_path))
 
     with open(os.path.join(args.output_dir, "index.html"), "w") as fh:
         fh.write(html)
 
-    print(f"Built site in {args.output_dir} (image: {image_path})")
+    print(f"Built site in {args.output_dir} "
+          f"(images: {image_path}, {evolution_path})")
 
 
 if __name__ == "__main__":
