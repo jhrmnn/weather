@@ -96,6 +96,12 @@ def _page_name(lang: str) -> str:
     return "index.html" if lang == LANGS[0] else f"{lang}.html"
 
 
+def _page_href(lang: str) -> str:
+    """Relative URL for ``lang`` (the default language lives at the directory
+    root, so it links to ``./`` rather than the bare ``index.html``)."""
+    return "./" if lang == LANGS[0] else f"{lang}.html"
+
+
 def _lang_nav(current: str) -> str:
     """Build the language-switcher markup, highlighting the current page."""
     parts = []
@@ -104,7 +110,7 @@ def _lang_nav(current: str) -> str:
         if lang == current:
             parts.append(f'<a aria-current="page">{name}</a>')
         else:
-            parts.append(f'<a href="{_page_name(lang)}">{name}</a>')
+            parts.append(f'<a href="{_page_href(lang)}">{name}</a>')
     return '<span class="sep">·</span>'.join(parts)
 
 
