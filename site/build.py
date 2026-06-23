@@ -95,13 +95,18 @@ def _version(path: str) -> str:
         return hashlib.sha256(fh.read()).hexdigest()[:12]
 
 
-def _city_options(cities: list, default_slug: str) -> str:
-    """Build the ``<option>`` markup for the city dropdown."""
+def _city_options(cities: list, default_slug: str, lang: str) -> str:
+    """Build the ``<option>`` markup for the city dropdown, with localised labels.
+
+    The ``value`` is the language-independent slug (so the selected city carries
+    across the language switch); only the displayed label is localised.
+    """
     parts = []
     for loc in cities:
         slug = _slug(loc.name)
+        name = i18n.city_name(lang, slug, loc.name)
         selected = " selected" if slug == default_slug else ""
-        parts.append(f'<option value="{slug}"{selected}>{loc.name}</option>')
+        parts.append(f'<option value="{slug}"{selected}>{name}</option>')
     return "".join(parts)
 
 
@@ -185,6 +190,9 @@ def main() -> None:
         city_data = {}
         for loc, per_model in cities:
             slug = _slug(loc.name)
+            # Localised city name for figures and chrome; the slug stays
+            # language-independent so URLs and the remembered selection match.
+            name = i18n.city_name(lang, slug, loc.name)
             coords = meteogram._format_coords(loc.latitude, loc.longitude)
 
             # Model-comparison plot: each model's latest-run median on one axis.
@@ -193,7 +201,7 @@ def main() -> None:
             series = [(model.label, model_color[model_id], data)
                       for model_id, (model, data, runs) in per_model.items()]
             meteogram.plot_model_comparison(series, integ_path,
-                                            station_name=loc.name, lang=lang)
+                                            station_name=name, lang=lang)
 
             model_map = {}
             for model_id, (model, data, runs) in per_model.items():
@@ -201,11 +209,11 @@ def main() -> None:
                 evolution_name = f"evolution.{slug}.{model_id}.{lang}.png"
                 image_path = os.path.join(args.output_dir, image_name)
                 evolution_path = os.path.join(args.output_dir, evolution_name)
-                meteogram.plot(data, image_path, station_name=loc.name,
+                meteogram.plot(data, image_path, station_name=name,
                                lang=lang, model_label=model.label,
                                cadence=model.cadence)
                 meteogram.plot_median_evolution(
-                    runs, evolution_path, station_name=loc.name, lang=lang,
+                    runs, evolution_path, station_name=name, lang=lang,
                     model_label=model.label, cadence=model.cadence)
                 tail = s["subtitle_tail"].format(
                     model=model.label, cadence=i18n.cadence(lang, model.cadence))
@@ -215,7 +223,7 @@ def main() -> None:
                     "evo": f"{evolution_name}?v={_version(evolution_path)}",
                 }
             city_data[slug] = {
-                "sub": f"{loc.name} ({coords})",
+                "sub": f"{name} ({coords})",
                 "integ": f"{integ_name}?v={_version(integ_path)}",
                 "models": model_map,
             }
@@ -230,7 +238,7 @@ def main() -> None:
             "__LABEL_CITY__": s["label_city"],
             "__LABEL_MODEL__": s["label_model"],
             "__CITY_OPTIONS__": _city_options([c[0] for c in cities],
-                                              default_slug),
+                                              default_slug, lang),
             "__MODEL_OPTIONS__": _model_options(models_present,
                                                 default_model_id),
             "__CITY_SUB__": default_city["sub"],

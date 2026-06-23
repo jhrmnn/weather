@@ -65,6 +65,18 @@ def cadence(lang: str, key: str) -> str:
         key, CADENCE[DEFAULT_LANG][key])
 
 
+# Localised city display names, keyed by the language-independent city slug. A
+# catalogue may omit the ``[cities]`` table (or any individual city) entirely;
+# missing entries fall back to the canonical name from ``collect.LOCATIONS``.
+CITIES = {lang: cat.get("cities", {}) for lang, cat in _CATALOGUES.items()}
+
+
+def city_name(lang: str, slug: str, default: str) -> str:
+    """Localised city name for a slug, falling back to ``default`` (its canonical
+    name) when the language has no translation for it."""
+    return CITIES.get(lang, {}).get(slug, default)
+
+
 def _plural_category(n: int, lang: str) -> str:
     """CLDR-style plural category for ``n``. Czech distinguishes a ``few`` form."""
     if lang == "cs":
