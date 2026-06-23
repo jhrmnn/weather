@@ -24,8 +24,8 @@ Box-and-whisker convention (matching ECMWF's own meteograms):
 
 The box-and-whisker glyphs sit on the model-native 3-hourly steps, but the
 median and control *tracks* are first resampled onto a finer grid with a
-minimum-curvature natural cubic spline so the connecting curves read smoothly,
-without the kinks of a shape-preserving interpolant.
+local Akima spline so the connecting curves read smoothly without ringing into
+over/undershoot near sharp steps the way a global cubic spline would.
 
 Reference: https://confluence.ecmwf.int/display/FUG/Section+8.1.4+Meteograms
 """
@@ -45,7 +45,7 @@ import matplotlib.dates as mdates  # noqa: E402
 import matplotlib.pyplot as plt  # noqa: E402
 import matplotlib.ticker as mticker  # noqa: E402
 import numpy as np  # noqa: E402
-from scipy.interpolate import CubicSpline  # noqa: E402
+from scipy.interpolate import Akima1DInterpolator  # noqa: E402
 
 N_PERTURBED = 50  # perturbed members; the control is the base series (member 0)
 
@@ -284,13 +284,14 @@ def plot(data: EnsembleData, output: str, station_name: str | None = None,
     narrow = spacing * 0.30
 
     # Finer grid for the smooth control/median tracks (boxes stay 3-hourly).
-    # A natural cubic spline (zero second derivative at the ends) uniquely
-    # minimises total curvature, giving the smoothest C2 tracks through the
-    # 3-hourly values.
+    # An Akima spline interpolates locally, so a sharp step (e.g. a frontal
+    # passage) stays contained instead of ringing as over/undershoot across
+    # neighbouring intervals the way a global cubic spline does — the track
+    # never strays below/above the values the ensemble actually predicted.
     x_fine = np.linspace(x[0], x[-1],
                          (len(x) - 1) * FINE_STEPS_PER_INTERVAL + 1)
-    p50_fine = CubicSpline(x, p50, bc_type="natural")(x_fine)
-    control_fine = CubicSpline(x, data.control, bc_type="natural")(x_fine)
+    p50_fine = Akima1DInterpolator(x, p50)(x_fine)
+    control_fine = Akima1DInterpolator(x, data.control)(x_fine)
 
     fig, ax = plt.subplots(figsize=(16, 5.6), dpi=140)
 
@@ -305,10 +306,10 @@ def plot(data: EnsembleData, output: str, station_name: str | None = None,
     # Median.
     ax.hlines(p50, x - wide / 2, x + wide / 2, color="black", linewidth=0.9,
               zorder=5)
-    # Median tracking line (thick red), cubic-Hermite-smoothed across time.
+    # Median tracking line (thick red), Akima-smoothed across time.
     ax.plot(x_fine, p50_fine, color=MEDIAN_RED, linewidth=2.6, zorder=6,
             label=_tr(lang, "legend_median"), solid_capstyle="round")
-    # Control forecast, cubic-Hermite-smoothed.
+    # Control forecast, Akima-smoothed.
     ax.plot(x_fine, control_fine, color=CONTROL_BLUE, linewidth=1.4, zorder=7,
             label=_tr(lang, "legend_control"))
 
@@ -371,7 +372,7 @@ def plot(data: EnsembleData, output: str, station_name: str | None = None,
 
 
 def _smooth_track(x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    """Resample ``y(x)`` onto a fine grid with a natural cubic spline.
+    """Resample ``y(x)`` onto a fine grid with an Akima spline.
 
     Mirrors the median/control smoothing in :func:`plot`; needs at least three
     points, otherwise the original samples are returned unchanged.
@@ -379,7 +380,7 @@ def _smooth_track(x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]
     if len(x) < 3:
         return x, y
     x_fine = np.linspace(x[0], x[-1], (len(x) - 1) * FINE_STEPS_PER_INTERVAL + 1)
-    return x_fine, CubicSpline(x, y, bc_type="natural")(x_fine)
+    return x_fine, Akima1DInterpolator(x, y)(x_fine)
 
 
 def plot_median_evolution(runs: list[EnsembleData], output: str,
