@@ -102,15 +102,47 @@
 
   <script>
     // Top-level city selector: swap the figures (and the subtitle's city part)
-    // in place when a different city is chosen — no page reload. The selection
-    // is remembered across the language switch via localStorage.
+    // in place when a different city is chosen — no page reload. The non-default
+    // selection is reflected in the URL (?city=<slug>) so it can be shared and
+    // bookmarked, mirrored to localStorage, and carried onto the language link
+    // so it survives the language switch.
     (function () {
       var CITIES = __CITY_DATA__;
+      var DEFAULT = "__DEFAULT_CITY__";
+      var PARAM = "city";
       var STORE_KEY = "weather-city";
       var select = document.getElementById("city");
       var meteoImg = document.getElementById("meteogram-img");
       var evoImg = document.getElementById("evolution-img");
       var citySub = document.getElementById("city-sub");
+
+      // Reflect the selection in the URL: a query param for non-default cities,
+      // and a clean URL (no param) for the default.
+      function syncUrl(slug) {
+        var url = new URL(window.location.href);
+        if (slug === DEFAULT) {
+          url.searchParams.delete(PARAM);
+        } else {
+          url.searchParams.set(PARAM, slug);
+        }
+        history.replaceState(null, "", url.toString());
+      }
+
+      // Carry the selection onto the language switcher link so it survives the
+      // page navigation even without localStorage.
+      function syncLangLinks(slug) {
+        var links = document.querySelectorAll(".lang a[href]");
+        for (var i = 0; i < links.length; i++) {
+          var u = new URL(links[i].getAttribute("href"), window.location.href);
+          if (slug === DEFAULT) {
+            u.searchParams.delete(PARAM);
+          } else {
+            u.searchParams.set(PARAM, slug);
+          }
+          links[i].setAttribute(
+            "href", u.pathname.split("/").pop() + u.search);
+        }
+      }
 
       function apply(slug) {
         var c = CITIES[slug];
@@ -119,15 +151,22 @@
         evoImg.src = c.evo;
         citySub.textContent = c.sub;
         select.value = slug;
+        try { localStorage.setItem(STORE_KEY, slug); } catch (e) {}
+        syncUrl(slug);
+        syncLangLinks(slug);
       }
 
-      var saved = localStorage.getItem(STORE_KEY);
-      if (saved && CITIES[saved] && saved !== "__DEFAULT_CITY__") {
-        apply(saved);
-      }
+      // Initial city: an explicit URL param wins (shareable links), then the
+      // remembered choice, then the default.
+      var fromUrl = new URLSearchParams(window.location.search).get(PARAM);
+      var stored;
+      try { stored = localStorage.getItem(STORE_KEY); } catch (e) {}
+      var initial = (fromUrl && CITIES[fromUrl]) ? fromUrl
+                  : (stored && CITIES[stored]) ? stored
+                  : DEFAULT;
+      apply(initial);
 
       select.addEventListener("change", function () {
-        localStorage.setItem(STORE_KEY, select.value);
         apply(select.value);
       });
     })();
