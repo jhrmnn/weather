@@ -2,8 +2,8 @@ name: Build and deploy meteogram site
 
 on:
   schedule:
-    # Every three hours, on the hour (UTC).
-    - cron: "0 */3 * * *"
+    # Every hour, on the hour (UTC).
+    - cron: "0 * * * *"
   push:
     branches: [main]
   pull_request:
@@ -14,12 +14,13 @@ permissions:
   contents: read
 
 jobs:
-  # Decide whether to fetch this run, throttling to at most one fetch an hour.
-  # We walk this workflow's prior runs newest-first and fetch only when the most
-  # recent run whose fetch job actually ran (conclusion success/failure — not the
-  # 'skipped' of a throttled run or a forked PR) started over an hour ago. So a
-  # burst of triggers (e.g. many pushes to a PR) fetches at most once an hour,
-  # and a long burst of skipped runs can't keep deferring the next fetch. The run
+  # Decide whether to fetch this run, throttling to at most one fetch every 50
+  # minutes. We walk this workflow's prior runs newest-first and fetch only when
+  # the most recent run whose fetch job actually ran (conclusion success/failure
+  # — not the 'skipped' of a throttled run or a forked PR) started over 50
+  # minutes ago. So a burst of triggers (e.g. many pushes to a PR) fetches at
+  # most once every 50 minutes, and a long burst of skipped runs can't keep
+  # deferring the next fetch. The run
   # history is GitHub's own, so the gate needs no committed or cached state.
   # Manual dispatch always fetches.
   gate:
@@ -39,7 +40,7 @@ jobs:
               core.setOutput('fetch', 'true');
               return;
             }
-            const HOUR = 60 * 60 * 1000;
+            const GATE_MS = 50 * 60 * 1000;
             const now = Date.now();
             const { data } = await github.rest.actions.listWorkflowRuns({
               owner: context.repo.owner,
@@ -69,7 +70,7 @@ jobs:
                 break;
               }
             }
-            const should = !lastFetch || (now - lastFetch) >= HOUR;
+            const should = !lastFetch || (now - lastFetch) >= GATE_MS;
             core.info(lastFetch
               ? `Last fetch started ${Math.round((now - lastFetch) / 60000)} min ago; fetch=${should}.`
               : 'No prior fetch found; fetch=true.');
