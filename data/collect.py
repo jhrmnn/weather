@@ -1,28 +1,33 @@
 #!/usr/bin/env python3
-"""Collect raw Open-Meteo ensemble responses into a per-run archive.
+"""Collect raw Open-Meteo ensemble responses into a per-fetch archive.
 
-Each stored file is the raw API response plus a single added ``model_run_time``
-stamp (see :func:`collect_one`), keyed by the run's initialisation time *and* a
-hash of its forecast content so each distinct forecast is archived exactly once.
-The collector fetches the ensemble every cycle and archives only forecasts whose
-*content* is new; the run metadata is read solely to label and key a new file,
-never to decide whether to fetch (Open-Meteo's run stamp advances on cycles it
-doesn't serve fresh data for, so it drifts out of sync with the data). A new
-file — and a new commit — therefore appears only when the forecast genuinely
+Each stored file is the raw API response plus two added stamps — the model's
+``model_run_time`` (kept only as a human label; see below) and the ``fetched_at``
+time the response was collected — keyed by that *fetch* time and a hash of the
+forecast content, so each distinct forecast is archived exactly once. The
+collector fetches the ensemble and archives only forecasts whose *content* is
+new, so a new file — and a new commit — appears only when the forecast genuinely
 changes, which is what lets CI push to the ``data`` branch only when there is
 something new.
 
+How often the collector runs is controlled by CI, not here: the workflow fetches
+at most once an hour (it skips a run when the workflow last ran under an hour
+ago) and always on manual dispatch. This module just fetches when invoked and
+archives whatever forecast content is new.
+
 Layout::
 
-    <data-dir>/<model>/<lat>_<lon>/<run-init-time>-<content-hash>.json
+    <data-dir>/<model>/<lat>_<lon>/<fetch-time>-<content-hash>.json
 
-``<run-init-time>`` is the run's UTC initialisation time (``YYYYMMDDTHHMMSSZ``),
-so files sort chronologically and the most recent one is "the latest run".
-``<content-hash>`` fingerprints the forecast data itself (see
-:func:`content_hash`), so a run whose data merely duplicates an earlier one —
-the model-run stamp can advance without the data changing — is never archived or
-plotted twice. Any older ``<run-init-time>.json`` files without a hash are still
-read, and are migrated to the content-keyed name on the next collection.
+``<fetch-time>`` is the collector's UTC fetch time (``YYYYMMDDTHHMMSSZ``), so
+files sort chronologically by when they were collected and the lexicographically
+last one is the most recently fetched run. The fetch time keys the archive
+because the model-run stamp is unreliable: Open-Meteo advances it on cycles it
+serves no fresh data for *and* leaves it unchanged across mid-run revisions
+(two genuinely different forecasts under one run stamp), so it can neither
+identify nor order runs — it is retained only as a plot label. ``<content-hash>``
+fingerprints the forecast data itself (see :func:`content_hash`), so a run whose
+data merely duplicates an earlier one is never archived or plotted twice.
 """
 from __future__ import annotations
 
@@ -57,18 +62,19 @@ REQUEST_RETRIES = 4
 REQUEST_BACKOFF = 2.0  # seconds; doubled after each failed attempt
 REQUEST_TIMEOUT = 60  # seconds per attempt
 
-# Filename key: ``<run-stamp>-<content-hash>``. The run stamp (the run's UTC
-# initialisation time, YYYYMMDDTHHMMSSZ) keeps files human-readable and
-# chronologically sortable; the content hash makes the archive's *identity* the
+# Filename key: ``<fetch-stamp>-<content-hash>``. The fetch stamp (the
+# collector's UTC fetch time, YYYYMMDDTHHMMSSZ) keeps files human-readable and
+# sorts them by when they were collected, so the latest file is the most
+# recently fetched run; the content hash makes the archive's *identity* the
 # forecast data itself, so a run whose data duplicates an earlier one is never
 # stored — or plotted — twice (see ``content_hash``).
 STAMP_FORMAT = "%Y%m%dT%H%M%SZ"
 CONTENT_HASH_LEN = 12
 
 # Fields excluded from the content hash: the API's per-response timing and the
-# run stamp we attach. Everything else (valid times + every member series) is
-# the forecast, and is what defines a run's identity.
-_VOLATILE_KEYS = ("generationtime_ms", "model_run_time")
+# two stamps we attach (run label + fetch time). Everything else (valid times +
+# every member series) is the forecast, and is what defines a run's identity.
+_VOLATILE_KEYS = ("generationtime_ms", "model_run_time", "fetched_at")
 
 README = """\
 # Raw forecast data archive
@@ -76,19 +82,21 @@ README = """\
 This orphan branch is an archive of **raw Open-Meteo Ensemble API responses**,
 collected automatically by the `fetch` job of the site workflow.
 
-Each file is the API payload, plus an added `model_run_time` stamp (the run's
-UTC initialisation time). Files are keyed by that run init time *and* a hash of
-their forecast content, so each distinct forecast is stored once; a new file
-(and a new commit) appears only when a genuinely new run becomes available.
+Each file is the API payload, plus an added `model_run_time` label and a
+`fetched_at` stamp (the UTC time the response was collected). Files are keyed by
+that fetch time *and* a hash of their forecast content, so each distinct
+forecast is stored once; a new file (and a new commit) appears only when the
+forecast content genuinely changes.
 
 ```
-<model>/<lat>_<lon>/<run-init-time>-<content-hash>.json
+<model>/<lat>_<lon>/<fetch-time>-<content-hash>.json
 ```
 
-The content hash means a run whose data merely duplicates an earlier one (the
-model-run stamp can advance without the data changing) is never archived twice.
-Any older `<run-init-time>.json` files without a hash are still read, and are
-migrated to the content-keyed name on the next collection.
+Keying by fetch time makes the latest file the most recently collected run. The
+model-run stamp is kept only as a label: Open-Meteo advances it on cycles it
+serves no fresh data for, and leaves it unchanged across mid-run revisions, so
+it identifies neither the data nor its order. The content hash means a run whose
+data merely duplicates an earlier one is never archived twice.
 
 Do not edit by hand — it is regenerated by CI.
 """
@@ -271,13 +279,14 @@ def content_hash(payload: dict) -> str:
     return hashlib.sha256(blob.encode()).hexdigest()[:CONTENT_HASH_LEN]
 
 
-def archive_path(loc_dir: str, run: dt.datetime, digest: str) -> str:
-    """Content-keyed archive path: ``<stamp>-<digest>.json``."""
-    return os.path.join(loc_dir, f"{run.strftime(STAMP_FORMAT)}-{digest}.json")
+def archive_path(loc_dir: str, fetched_at: dt.datetime, digest: str) -> str:
+    """Content-keyed archive path: ``<fetch-stamp>-<digest>.json``."""
+    return os.path.join(
+        loc_dir, f"{fetched_at.strftime(STAMP_FORMAT)}-{digest}.json")
 
 
 def _run_stamp(name: str) -> str:
-    """Run-init-time stamp embedded in archive file ``name``."""
+    """Fetch-time stamp embedded in archive file ``name``."""
     return name[: -len(".json")].split("-", 1)[0]
 
 
@@ -321,8 +330,8 @@ def latest_file(data_dir: str, loc: Location,
                 model: Model = DEFAULT_MODEL) -> str | None:
     """Path to the latest-run archive file for ``loc``/``model`` (or ``None``).
 
-    Files are named by run init time, so the lexicographically last one is the
-    most recent run.
+    Files are named by fetch time, so the lexicographically last one is the most
+    recently collected run.
     """
     d = location_dir(data_dir, loc, model)
     if not os.path.isdir(d):
@@ -348,12 +357,12 @@ def load_all(data_dir: str, loc: Location,
              model: Model = DEFAULT_MODEL) -> list[dict]:
     """Load every archived run for ``loc`` as content-distinct payloads, oldest first.
 
-    Files are keyed by run init time, so sorting by name yields chronological
-    order. Payloads with identical forecast content (see :func:`content_hash`)
-    are collapsed to their earliest run, so a model-run stamp that advanced
-    without the data changing — or a legacy file kept alongside its content-keyed
-    copy — contributes a single run rather than a duplicate curve. Returns an
-    empty list when nothing is archived yet.
+    Files are keyed by fetch time, so sorting by name yields collection order.
+    Payloads with identical forecast content (see :func:`content_hash`) are
+    collapsed to their earliest fetch, so a forecast re-fetched unchanged — or a
+    legacy file kept alongside its content-keyed copy — contributes a single run
+    rather than a duplicate curve. Returns an empty list when nothing is archived
+    yet.
     """
     d = location_dir(data_dir, loc, model)
     if not os.path.isdir(d):
@@ -412,18 +421,19 @@ def _migrate_keys(loc_dir: str) -> None:
         os.remove(path)
 
 
-def collect_one(loc: Location, data_dir: str, model: Model = DEFAULT_MODEL,
+def collect_one(loc: Location, data_dir: str, fetched_at: dt.datetime,
+                model: Model = DEFAULT_MODEL,
                 forecast_days: int | None = None) -> str | None:
     """Archive ``loc``'s latest ``model`` forecast, if not already stored.
 
     The data is the source of truth: the ensemble is fetched first, and only a
-    forecast whose *content* is new (by :func:`content_hash`) is archived. The
-    model-run metadata is read **only then**, to label and key the file — never
-    to decide whether to fetch. This keeps the run stamp out of the novelty
-    decision, because Open-Meteo's run metadata advances on cycles it doesn't
-    serve fresh ensemble data for (the shorter 06/18 UTC runs), so the stamp
-    drifts out of sync with the data actually returned. Returns the new path, or
-    ``None`` when the forecast was already archived.
+    forecast whose *content* is new (by :func:`content_hash`) is archived under
+    ``fetched_at`` (the collector run's fetch time). The model-run metadata is
+    read **only then**, purely to attach a ``model_run_time`` label — never to
+    decide whether to fetch or to key the file, because Open-Meteo's run stamp
+    advances on cycles it serves no fresh data for and stalls across mid-run
+    revisions, so it tracks neither the data's novelty nor its order. Returns
+    the new path, or ``None`` when the forecast was already archived.
     """
     loc_dir = location_dir(data_dir, loc, model)
     _migrate_keys(loc_dir)
@@ -432,13 +442,13 @@ def collect_one(loc: Location, data_dir: str, model: Model = DEFAULT_MODEL,
     payload = fetch_data(loc.latitude, loc.longitude, model, forecast_days)
     digest = content_hash(payload)
     # Nothing new to store — and, deliberately, no run-metadata request: the
-    # stamp is fetched only after a fresh forecast proves new.
+    # label is fetched only after a fresh forecast proves new.
     if _content_archived(loc_dir, digest):
         return None
 
-    run = latest_run_time(model)
-    payload["model_run_time"] = run.strftime(RUN_TIME_FORMAT)
-    path = archive_path(loc_dir, run, digest)
+    payload["fetched_at"] = fetched_at.strftime(STAMP_FORMAT)
+    payload["model_run_time"] = latest_run_time(model).strftime(RUN_TIME_FORMAT)
+    path = archive_path(loc_dir, fetched_at, digest)
     os.makedirs(loc_dir, exist_ok=True)
     with open(path, "w") as fh:
         json.dump(payload, fh, indent=2, sort_keys=True)
@@ -462,12 +472,16 @@ def main() -> None:
         with open(readme, "w") as fh:
             fh.write(README)
 
+    # One fetch time labels every file this run archives. How often the run
+    # happens at all is the workflow's job (it throttles to once an hour).
+    fetched_at = dt.datetime.now(dt.timezone.utc)
     new = 0
     for model in MODELS:
         print(f"{model.id}:")
         for loc in LOCATIONS:
             where = loc.name or f"{loc.latitude}, {loc.longitude}"
-            path = collect_one(loc, args.data_dir, model, args.forecast_days)
+            path = collect_one(loc, args.data_dir, fetched_at, model,
+                               args.forecast_days)
             if path is None:
                 print(f"  {where}: latest run already archived; nothing to fetch")
             else:
