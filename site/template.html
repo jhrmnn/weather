@@ -22,7 +22,26 @@
     }
     .wrap { max-width: 1180px; margin: 0 auto; padding: 2rem 1.25rem 3rem; }
     .topbar {
-      display: flex; justify-content: flex-end; margin-bottom: .5rem;
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 1rem; margin-bottom: .5rem;
+    }
+    .city-select {
+      display: inline-flex; align-items: center; gap: .4rem; font-size: .9rem;
+    }
+    .city-select .city-label { color: #6a7077; }
+    .city-select select {
+      font: inherit; font-weight: 700; color: inherit;
+      background: #fff; border: 1px solid #c8ccd2; border-radius: 8px;
+      padding: .3rem 1.6rem .3rem .6rem; cursor: pointer; appearance: none;
+      background-image:
+        url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 8"><path fill="%236a7077" d="M1 1l5 5 5-5"/></svg>');
+      background-repeat: no-repeat;
+      background-position: right .55rem center; background-size: .65rem;
+    }
+    @media (prefers-color-scheme: dark) {
+      .city-select select {
+        background-color: #1e2127; border-color: #3a3f47;
+      }
     }
     .lang { font-size: .9rem; }
     .lang a { color: #6a7077; text-decoration: none; }
@@ -50,15 +69,19 @@
 <body>
   <div class="wrap">
     <div class="topbar">
+      <label class="city-select">
+        <span class="city-label">__LABEL_CITY__</span>
+        <select id="city" aria-label="__LABEL_CITY__">__CITY_OPTIONS__</select>
+      </label>
       <nav class="lang">__LANG_NAV__</nav>
     </div>
     <header>
       <h1>__H1__</h1>
-      <p>__SUBTITLE__</p>
+      <p><span id="city-sub">__CITY_SUB__</span> · __SUBTITLE_TAIL__</p>
     </header>
 
     <div class="card">
-      <img src="meteogram.__LANG__.png?v=__IMG_VERSION__" alt="__ALT_METEO__">
+      <img id="meteogram-img" src="__METEO_SRC__" alt="__ALT_METEO__">
       <div class="meta">
         <span>__LABEL_UPDATED__ <strong>__UPDATED__</strong></span>
         <span>__LABEL_REFRESH__</span>
@@ -66,7 +89,7 @@
     </div>
 
     <div class="card">
-      <img src="evolution.__LANG__.png?v=__EVO_VERSION__" alt="__ALT_EVO__">
+      <img id="evolution-img" src="__EVO_SRC__" alt="__ALT_EVO__">
       <div class="meta">
         <span>__CAPTION_EVO__</span>
       </div>
@@ -76,5 +99,38 @@
       <p>__FOOTER__</p>
     </footer>
   </div>
+
+  <script>
+    // Top-level city selector: swap the figures (and the subtitle's city part)
+    // in place when a different city is chosen — no page reload. The selection
+    // is remembered across the language switch via localStorage.
+    (function () {
+      var CITIES = __CITY_DATA__;
+      var STORE_KEY = "weather-city";
+      var select = document.getElementById("city");
+      var meteoImg = document.getElementById("meteogram-img");
+      var evoImg = document.getElementById("evolution-img");
+      var citySub = document.getElementById("city-sub");
+
+      function apply(slug) {
+        var c = CITIES[slug];
+        if (!c) return;
+        meteoImg.src = c.meteo;
+        evoImg.src = c.evo;
+        citySub.textContent = c.sub;
+        select.value = slug;
+      }
+
+      var saved = localStorage.getItem(STORE_KEY);
+      if (saved && CITIES[saved] && saved !== "__DEFAULT_CITY__") {
+        apply(saved);
+      }
+
+      select.addEventListener("change", function () {
+        localStorage.setItem(STORE_KEY, select.value);
+        apply(select.value);
+      });
+    })();
+  </script>
 </body>
 </html>

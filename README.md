@@ -90,13 +90,16 @@ builds the site, and deploys it, in four jobs:
   early. New data is committed and pushed to the `data` branch (keyed by run, so
   each run is stored once). See [`data/collect.py`](data/collect.py).
 * **build** — checks out the `data` branch and renders the plots from the
-  **latest archived data** (no live fetching) in **both English and Czech**,
-  embedding them into a small **bilingual** static site
-  ([`site/template.html`](site/template.html)), and uploads the artifacts.
-  English is served as `index.html` (the site default) and Czech as `cs.html`;
-  each page links to the other, and each language gets its own figures
-  (`meteogram.<lang>.png`, `evolution.<lang>.png`) with localised labels,
-  titles, and date names.
+  **latest archived data** (no live fetching) for **every archived city** in
+  **both English and Czech**, embedding them into a small **bilingual** static
+  site ([`site/template.html`](site/template.html)), and uploads the artifacts.
+  A **top-level city dropdown** switches between cities client-side (no page
+  reload), and the selection is remembered across the language switch. English
+  is served as `index.html` (the site default) and Czech as `cs.html`; each page
+  links to the other, and each city/language gets its own figures
+  (`meteogram.<city>.<lang>.png`, `evolution.<city>.<lang>.png`) with localised
+  labels, titles, and date names. The set of cities mirrors `LOCATIONS` in
+  [`data/collect.py`](data/collect.py).
 * **deploy-pages** — publishes to **GitHub Pages** with `actions/deploy-pages`,
   on the production triggers only: every **three hours**
   (`cron: "0 */3 * * *"`), on every **push to `main`**, and on demand via

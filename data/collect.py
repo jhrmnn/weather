@@ -69,10 +69,14 @@ class Location:
     name: str | None = None
 
 
-# Points to archive. Mirrors the published site (Berlin) by default; add more
-# entries here to grow the archive.
+# Points to archive. Each becomes a selectable city on the published site (the
+# site renders one figure pair per location); add more entries here to grow the
+# archive and the city selector.
 LOCATIONS = [
     Location(52.55, 13.41, "Berlin"),
+    Location(50.08, 14.44, "Prague"),
+    Location(48.81, 14.32, "Český Krumlov"),
+    Location(48.15, 17.11, "Bratislava"),
 ]
 
 
