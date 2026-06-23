@@ -133,14 +133,15 @@
       function syncLangLinks(slug) {
         var links = document.querySelectorAll(".lang a[href]");
         for (var i = 0; i < links.length; i++) {
-          var u = new URL(links[i].getAttribute("href"), window.location.href);
-          if (slug === DEFAULT) {
-            u.searchParams.delete(PARAM);
-          } else {
-            u.searchParams.set(PARAM, slug);
-          }
+          // Keep the original relative target (``./`` for the default
+          // language, ``<lang>.html`` otherwise) so the clean directory URL is
+          // preserved, and only attach the city query param.
+          var base = links[i].getAttribute("href").split("?")[0];
           links[i].setAttribute(
-            "href", u.pathname.split("/").pop() + u.search);
+            "href",
+            slug === DEFAULT
+              ? base
+              : base + "?" + PARAM + "=" + encodeURIComponent(slug));
         }
       }
 
