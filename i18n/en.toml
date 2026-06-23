@@ -1,0 +1,54 @@
+# English message catalogue (the site default language).
+#
+# Translatable text and locale data only; the matching Czech catalogue lives in
+# ``cs.toml``. The loader in ``__init__.py`` reads every ``*.toml`` here, so
+# adding a language is just adding a file.
+
+name = "English"
+
+# Figure text, rendered into the meteogram/evolution PNGs (was
+# ``meteogram.STRINGS``). ``{...}`` placeholders are filled with ``str.format``.
+[strings]
+meteogram_suptitle = "ECMWF ENS Meteogram – 2 m Temperature"
+evolution_suptitle = "ECMWF ENS Median Evolution – 2 m Temperature"
+ylabel = "2 m Temperature ({units})"
+legend_median = "Median"
+legend_control = "Control forecast"
+legend_latest = "latest run"
+glyph_max = "max"
+glyph_min = "min"
+glyph_median = "median"
+glyph_control = "control"
+colorbar = "Forecast run (initialisation, UTC)"
+footer = "Data: Open-Meteo Ensemble API (CC BY 4.0) – ECMWF IFS ensemble"
+meteogram_line1 = "{where}  ·  ECMWF IFS 0.25° ensemble ({n} members), model-native 3-hourly"
+meteogram_line2 = "Control Forecast and ENS Distribution – {init}"
+evolution_line1 = "{where}  ·  ECMWF IFS 0.25° ensemble median (50th percentile) per model run, model-native 3-hourly"
+evolution_line2 = "How the median forecast for each time shifted across {runs} – {span}"
+
+# HTML page chrome, everything outside the figures (was ``build.HTML_STRINGS``).
+[html]
+title = "ECMWF ENS 2 m Temperature Meteogram"
+subtitle_tail = "ECMWF IFS 0.25° ensemble, model-native 3-hourly"
+alt_meteo = "ECMWF ENS 2 m temperature meteogram"
+label_city = "City"
+label_updated = "Last updated:"
+label_refresh = "Refreshes every 3 hours"
+alt_evo = "ECMWF ENS median evolution: how the 2 m temperature ensemble median for each time shifted across successive model runs"
+caption_evo = "How the ensemble <strong>median</strong> for each time has shifted across successive model runs, colour-coded by run initialisation time. Builds up as runs are archived."
+footer = 'Data from the <a href="https://open-meteo.com/en/docs/ensemble-api">Open-Meteo Ensemble API</a> (CC BY 4.0), based on the ECMWF IFS ensemble (ECMWF data, CC BY 4.0). Source on <a href="https://github.com/jhrmnn/weather">GitHub</a>.'
+
+# Locale date names, indexed Mon..Sun / Jan..Dec. Dates are formatted from these
+# tables rather than via ``strftime``/locale, so output is identical regardless
+# of the host's installed locales.
+[dates]
+day_abbr = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+day_full = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+month_abbr = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+month_full = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
+
+# Plural word-forms for the run-count phrase. English has two forms; the loader
+# picks ``one`` for n == 1 and ``other`` otherwise.
+[plurals]
+runs_one = "{n} run"
+runs_other = "{n} runs"

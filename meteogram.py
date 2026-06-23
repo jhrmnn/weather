@@ -60,101 +60,21 @@ MEDIAN_RED = "#FF0000"   # median tracking line
 
 # --- Internationalisation -------------------------------------------------
 # Both figures can be rendered in English ("en") or Czech ("cs"). All
-# user-visible strings, plus locale-dependent date names, live here so the two
-# language versions stay in lock-step. Dates are formatted from these tables
-# rather than via ``strftime``/locale, which keeps output identical regardless
-# of the host's installed locales.
-DEFAULT_LANG = "en"
-
-_DAY_ABBR = {
-    "en": ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-    "cs": ["Po", "Út", "St", "Čt", "Pá", "So", "Ne"],
-}
-_DAY_FULL = {
-    "en": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday",
-           "Saturday", "Sunday"],
-    "cs": ["pondělí", "úterý", "středa", "čtvrtek", "pátek", "sobota",
-           "neděle"],
-}
-_MONTH_ABBR = {
-    "en": ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
-           "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
-    "cs": ["led", "úno", "bře", "dub", "kvě", "čvn",
-           "čvc", "srp", "zář", "říj", "lis", "pro"],
-}
-# Czech month names take the genitive in date phrases ("23. června").
-_MONTH_FULL = {
-    "en": ["January", "February", "March", "April", "May", "June", "July",
-           "August", "September", "October", "November", "December"],
-    "cs": ["ledna", "února", "března", "dubna", "května", "června",
-           "července", "srpna", "září", "října", "listopadu", "prosince"],
-}
-
-STRINGS = {
-    "en": {
-        "meteogram_suptitle": "ECMWF ENS Meteogram – 2 m Temperature",
-        "evolution_suptitle": "ECMWF ENS Median Evolution – 2 m Temperature",
-        "ylabel": "2 m Temperature ({units})",
-        "legend_median": "Median",
-        "legend_control": "Control forecast",
-        "legend_latest": "latest run",
-        "glyph_max": "max",
-        "glyph_min": "min",
-        "glyph_median": "median",
-        "glyph_control": "control",
-        "colorbar": "Forecast run (initialisation, UTC)",
-        "footer": "Data: Open-Meteo Ensemble API (CC BY 4.0) – ECMWF IFS "
-                  "ensemble",
-        "meteogram_line1": "{where}  ·  ECMWF IFS 0.25° ensemble "
-                           "({n} members), model-native 3-hourly",
-        "meteogram_line2": "Control Forecast and ENS Distribution – {init}",
-        "evolution_line1": "{where}  ·  ECMWF IFS 0.25° ensemble median "
-                           "(50th percentile) per model run, model-native "
-                           "3-hourly",
-        "evolution_line2": "How the median forecast for each time shifted "
-                           "across {runs} – {span}",
-    },
-    "cs": {
-        "meteogram_suptitle": "Meteogram ECMWF ENS – teplota ve 2 m",
-        "evolution_suptitle": "Vývoj mediánu ECMWF ENS – teplota ve 2 m",
-        "ylabel": "Teplota ve 2 m ({units})",
-        "legend_median": "Medián",
-        "legend_control": "Kontrolní předpověď",
-        "legend_latest": "poslední běh",
-        "glyph_max": "max",
-        "glyph_min": "min",
-        "glyph_median": "medián",
-        "glyph_control": "kontrolní",
-        "colorbar": "Běh předpovědi (inicializace, UTC)",
-        "footer": "Data: Open-Meteo Ensemble API (CC BY 4.0) – soubor "
-                  "ECMWF IFS",
-        "meteogram_line1": "{where}  ·  soubor ECMWF IFS 0.25° "
-                           "({n} členů), nativní 3hodinové rozlišení modelu",
-        "meteogram_line2": "Kontrolní předpověď a rozdělení ENS – {init}",
-        "evolution_line1": "{where}  ·  medián souboru ECMWF IFS 0.25° "
-                           "(50. percentil) podle běhu modelu, nativní "
-                           "3hodinové rozlišení modelu",
-        "evolution_line2": "Jak se medián předpovědi pro každý čas posouval "
-                           "během {runs} – {span}",
-    },
-}
-
-
-def _tr(lang: str, key: str) -> str:
-    """Look up a translated string, falling back to the default language."""
-    return STRINGS.get(lang, STRINGS[DEFAULT_LANG]).get(
-        key, STRINGS[DEFAULT_LANG][key])
-
-
-def _runs_phrase(n: int, lang: str) -> str:
-    """Localise a ``<count> run(s)`` phrase, including Czech plural forms."""
-    if lang == "cs":
-        if n == 1:
-            return f"{n} běh"
-        if 2 <= n <= 4:
-            return f"{n} běhy"
-        return f"{n} běhů"
-    return f"{n} run" if n == 1 else f"{n} runs"
+# user-visible strings, plus locale-dependent date names, live in the ``i18n``
+# package (one ``<lang>.toml`` catalogue per language) so the two language
+# versions stay in lock-step and translations are editable without touching
+# code. The names below mirror the catalogue's data shapes; date-formatting and
+# plural logic stay here, sourcing their vocabulary from the catalogues.
+from i18n import (  # noqa: E402
+    DAY_ABBR as _DAY_ABBR,
+    DAY_FULL as _DAY_FULL,
+    DEFAULT_LANG,
+    LANGS,
+    MONTH_ABBR as _MONTH_ABBR,
+    MONTH_FULL as _MONTH_FULL,
+    runs_phrase as _runs_phrase,
+    tr as _tr,
+)
 
 
 def _fmt_day_tick(d: dt.datetime, lang: str) -> str:
@@ -575,7 +495,7 @@ def main() -> None:
                         help="forecast length in days (default: 11)")
     parser.add_argument("--output", default="ecmwf_ens_temperature_meteogram.png",
                         help="output image path")
-    parser.add_argument("--lang", default=DEFAULT_LANG, choices=sorted(STRINGS),
+    parser.add_argument("--lang", default=DEFAULT_LANG, choices=LANGS,
                         help="language for labels and dates (default: en)")
     parser.add_argument("--save-json", default=None,
                         help="also write the raw API response to this path")
