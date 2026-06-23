@@ -2,12 +2,15 @@
 """Collect raw Open-Meteo ensemble responses into a per-run archive.
 
 Each stored file is the raw API response plus a single added ``model_run_time``
-stamp (see :func:`fetch_raw`), keyed by the run's initialisation time *and* a
+stamp (see :func:`collect_one`), keyed by the run's initialisation time *and* a
 hash of its forecast content so each distinct forecast is archived exactly once.
-The collector reads the model metadata first and downloads the ensemble only
-when the latest run is not already stored, so a new file (and a new commit)
-appears only when a genuinely new run is available — which is what lets CI push
-to the ``data`` branch only when there is something new.
+The collector fetches the ensemble every cycle and archives only forecasts whose
+*content* is new; the run metadata is read solely to label and key a new file,
+never to decide whether to fetch (Open-Meteo's run stamp advances on cycles it
+doesn't serve fresh data for, so it drifts out of sync with the data). A new
+file — and a new commit — therefore appears only when the forecast genuinely
+changes, which is what lets CI push to the ``data`` branch only when there is
+something new.
 
 Layout::
 
@@ -145,26 +148,19 @@ def latest_run_time(model: str = MODEL) -> dt.datetime:
     return dt.datetime.fromtimestamp(ts, dt.timezone.utc)
 
 
-def fetch_raw(
+def fetch_data(
     latitude: float,
     longitude: float,
     forecast_days: int = 11,
     variable: str = "temperature_2m",
 ) -> dict:
-    """Return the Open-Meteo Ensemble API response as a dict.
+    """Return the Open-Meteo Ensemble API response as a dict (no run stamp).
 
-    The payload is the API response verbatim, plus a single added
-    ``model_run_time`` key (the latest run's UTC initialisation time, from
-    :func:`latest_run_time`) so the forecast can be keyed and labelled by its
-    actual run rather than the window start.
-
-    The run stamp and the data come from two separate endpoints, so a new run
-    landing between the two requests could mislabel the data. To avoid that, the
-    data fetch is *bracketed* by two run reads: if the latest run is unchanged
-    across the bracket, it provably did not change while the data was in flight,
-    so the data belongs to that run. If a run lands mid-flight the reads differ
-    and we retry; the rare case where retries are exhausted self-heals on the
-    next collection cycle.
+    This is the raw forecast only — it does *not* touch the run-metadata
+    endpoint. Callers that need the data labelled by its model run add the
+    ``model_run_time`` key themselves (see :func:`fetch_raw` and
+    :func:`collect_one`), so the collector can decide a forecast is new — by
+    content — before spending a metadata request on it.
     """
     params = {
         "latitude": latitude,
@@ -175,10 +171,29 @@ def fetch_raw(
         "forecast_days": forecast_days,
         "timezone": "GMT",
     }
+    return _get(ENSEMBLE_URL, params=params).json()
+
+
+def fetch_raw(
+    latitude: float,
+    longitude: float,
+    forecast_days: int = 11,
+    variable: str = "temperature_2m",
+) -> dict:
+    """Return the Ensemble response plus an added ``model_run_time`` label.
+
+    The data and run stamp come from two separate endpoints, so a new run
+    landing between the requests could mislabel the data. The data fetch is
+    *bracketed* by two run reads: if the latest run is unchanged across the
+    bracket it provably did not change while the data was in flight, so the data
+    belongs to that run; if a run lands mid-flight the reads differ and we retry.
+    Used by the one-shot meteogram, which always wants a freshly labelled
+    forecast. The archival path (:func:`collect_one`) instead fetches the data
+    first and only reads the run stamp once the content proves new.
+    """
     for _ in range(RUN_FETCH_RETRIES):
         run_before = latest_run_time()
-        resp = _get(ENSEMBLE_URL, params=params)
-        payload = resp.json()
+        payload = fetch_data(latitude, longitude, forecast_days, variable)
         run_after = latest_run_time()
         if run_before == run_after:
             break
@@ -244,15 +259,6 @@ def _is_legacy_run_file(name: str) -> bool:
     except ValueError:
         return False
     return True
-
-
-def _run_stamp_archived(loc_dir: str, run: dt.datetime) -> bool:
-    """True if any archive file is keyed to ``run`` (legacy or content-keyed)."""
-    if not os.path.isdir(loc_dir):
-        return False
-    stamp = run.strftime(STAMP_FORMAT)
-    return any(is_run_file(n) and _run_stamp(n) == stamp
-               for n in os.listdir(loc_dir))
 
 
 def _content_archived(loc_dir: str, digest: str) -> bool:
@@ -351,35 +357,30 @@ def _migrate_keys(loc_dir: str) -> None:
 
 
 def collect_one(loc: Location, data_dir: str, forecast_days: int) -> str | None:
-    """Archive ``loc``'s latest model run, if its forecast isn't already stored.
+    """Archive ``loc``'s latest forecast, if its content isn't already stored.
 
-    Gated on the model metadata: the latest run's initialisation time is read
-    first and the (expensive) ensemble download is skipped when that run is
-    already archived. After downloading, the forecast's content hash is the real
-    dedup key — a run whose data merely duplicates one already archived (the
-    model-run stamp advanced without the data changing) is not stored again.
-    Returns the new path, or ``None`` when there was nothing new to store.
+    The data is the source of truth: the ensemble is fetched first, and only a
+    forecast whose *content* is new (by :func:`content_hash`) is archived. The
+    model-run metadata is read **only then**, to label and key the file — never
+    to decide whether to fetch. This keeps the run stamp out of the novelty
+    decision, because Open-Meteo's run metadata advances on cycles it doesn't
+    serve fresh ensemble data for (the shorter 06/18 UTC runs), so the stamp
+    drifts out of sync with the data actually returned. Returns the new path, or
+    ``None`` when the forecast was already archived.
     """
     loc_dir = location_dir(data_dir, loc)
     _migrate_keys(loc_dir)
     _prune_legacy(loc_dir)
 
-    # Metadata gate: don't download the ensemble if the latest run is already
-    # here. Content dedup below is the real guard; this is a pure cost-saver.
-    if _run_stamp_archived(loc_dir, latest_run_time()):
-        return None
-
-    payload = fetch_raw(loc.latitude, loc.longitude, forecast_days)
-    # The model-run stamp can advance while Open-Meteo still serves the same
-    # forecast, so dedup on content rather than on the stamp: the earliest run
-    # to carry this forecast keeps it, and the duplicate is never archived (nor
-    # plotted) again. A stamp stuck ahead of the data self-heals once genuinely
-    # new data lands and the content hash changes.
+    payload = fetch_data(loc.latitude, loc.longitude, forecast_days)
     digest = content_hash(payload)
+    # Nothing new to store — and, deliberately, no run-metadata request: the
+    # stamp is fetched only after a fresh forecast proves new.
     if _content_archived(loc_dir, digest):
         return None
 
-    run = dt.datetime.fromisoformat(payload["model_run_time"])
+    run = latest_run_time()
+    payload["model_run_time"] = run.strftime(RUN_TIME_FORMAT)
     path = archive_path(loc_dir, run, digest)
     os.makedirs(loc_dir, exist_ok=True)
     with open(path, "w") as fh:
