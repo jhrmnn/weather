@@ -316,14 +316,9 @@ def _draw_legend_glyph(ax: plt.Axes, lang: str = DEFAULT_LANG) -> None:
     ax.plot([-1.2, 0.6], [-1.8, -1.8], color=CONTROL_BLUE, linewidth=1.6)
     ax.text(1.7, -1.8, _tr(lang, "glyph_control"), va="center", ha="left",
             fontsize=6.5, color=CONTROL_BLUE)
-    # Median tracking line key entry.
-    ax.plot([-1.2, 0.6], [-3.0, -3.0], color=MEDIAN_RED, linewidth=2.6,
-            solid_capstyle="round")
-    ax.text(1.7, -3.0, _tr(lang, "glyph_median"), va="center", ha="left",
-            fontsize=6.5, color=MEDIAN_RED)
 
     ax.set_xlim(-2.2, 5.0)
-    ax.set_ylim(-4.0, 9.2)
+    ax.set_ylim(-3.0, 9.2)
     ax.set_facecolor("white")
     ax.patch.set_alpha(0.92)
     for spine in ax.spines.values():
@@ -422,8 +417,6 @@ def plot(data: EnsembleData, output: str, station_name: str | None = None,
                                                 n=data.n_members)
     line2 = _tr(lang, "meteogram_line2").format(init=init)
     ax.set_title(f"{line1}\n{line2}", fontsize=9.5)
-
-    ax.legend(loc="upper right", fontsize=8, framealpha=0.92)
 
     # Schematic box-and-whisker key (upper-left, usually empty early in run).
     key = ax.inset_axes([0.012, 0.58, 0.085, 0.40])
