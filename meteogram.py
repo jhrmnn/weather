@@ -487,7 +487,9 @@ def plot_median_evolution(runs: list[EnsembleData], output: str,
                 label=_tr(lang, "legend_latest") if is_newest else None)
 
     # --- axes cosmetics -------------------------------------------------
-    x_lo = min(float(x[0]) for x in all_x)
+    # Start the x-axis at the latest run's start, so older runs are shown
+    # only over the window the newest run covers.
+    x_lo = float(all_x[-1][0])
     x_hi = max(float(x[-1]) for x in all_x)
     spacing = float(np.median(np.diff(all_x[-1])))  # ~0.125 days (3 h)
     ax.set_xlim(x_lo - spacing, x_hi + spacing)
