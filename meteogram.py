@@ -288,10 +288,8 @@ def plot(data: EnsembleData, output: str, station_name: str | None = None,
     # passage) stays contained instead of ringing as over/undershoot across
     # neighbouring intervals the way a global cubic spline does — the track
     # never strays below/above the values the ensemble actually predicted.
-    x_fine = np.linspace(x[0], x[-1],
-                         (len(x) - 1) * FINE_STEPS_PER_INTERVAL + 1)
-    p50_fine = Akima1DInterpolator(x, p50)(x_fine)
-    control_fine = Akima1DInterpolator(x, data.control)(x_fine)
+    x_fine_p50, p50_fine = _smooth_track(x, p50)
+    x_fine_control, control_fine = _smooth_track(x, data.control)
 
     fig, ax = plt.subplots(figsize=(16, 5.6), dpi=140)
 
@@ -307,11 +305,11 @@ def plot(data: EnsembleData, output: str, station_name: str | None = None,
     ax.hlines(p50, x - wide / 2, x + wide / 2, color="black", linewidth=0.9,
               zorder=5)
     # Median tracking line (thick red), Akima-smoothed across time.
-    ax.plot(x_fine, p50_fine, color=MEDIAN_RED, linewidth=2.6, zorder=6,
+    ax.plot(x_fine_p50, p50_fine, color=MEDIAN_RED, linewidth=2.6, zorder=6,
             label=_tr(lang, "legend_median"), solid_capstyle="round")
     # Control forecast, Akima-smoothed.
-    ax.plot(x_fine, control_fine, color=CONTROL_BLUE, linewidth=1.4, zorder=7,
-            label=_tr(lang, "legend_control"))
+    ax.plot(x_fine_control, control_fine, color=CONTROL_BLUE, linewidth=1.4,
+            zorder=7, label=_tr(lang, "legend_control"))
 
     # --- axes cosmetics -------------------------------------------------
     ax.set_xlim(x[0] - spacing, x[-1] + spacing)
@@ -374,9 +372,14 @@ def plot(data: EnsembleData, output: str, station_name: str | None = None,
 def _smooth_track(x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """Resample ``y(x)`` onto a fine grid with an Akima spline.
 
-    Mirrors the median/control smoothing in :func:`plot`; needs at least three
-    points, otherwise the original samples are returned unchanged.
+    Mirrors the median/control smoothing in :func:`plot`. Non-finite samples
+    (e.g. a time step where every ensemble member is missing, which surfaces as
+    a NaN out of :func:`numpy.nanpercentile`) are dropped first, since the Akima
+    spline rejects non-finite values. Needs at least three finite points,
+    otherwise the finite samples are returned unchanged.
     """
+    finite = np.isfinite(x) & np.isfinite(y)
+    x, y = x[finite], y[finite]
     if len(x) < 3:
         return x, y
     x_fine = np.linspace(x[0], x[-1], (len(x) - 1) * FINE_STEPS_PER_INTERVAL + 1)
