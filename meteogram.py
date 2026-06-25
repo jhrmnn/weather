@@ -62,9 +62,13 @@ MEDIAN_RED = "#FF0000"   # median tracking line
 
 # Per-model line colours for the model-comparison plot, applied in registry
 # order (see ``collect.MODELS``). Okabe–Ito palette — distinct and
-# colour-blind-safe — so each model keeps a stable colour across cities.
-COMPARE_COLORS = ["#0072B2", "#E69F00", "#009E73", "#CC79A7",
-                  "#D55E00", "#56B4E9", "#F0E442"]
+# colour-blind-safe — so each model keeps a stable colour across cities. The
+# first two entries are two shades of blue: the registry lists the two ECMWF
+# models (IFS, AIFS) first, so they read as a related pair on the plot. The
+# remaining slots are spaced well away from the blues (orange, reddish-purple)
+# to keep the other models clearly distinct.
+COMPARE_COLORS = ["#0072B2", "#56B4E9", "#E69F00", "#CC79A7",
+                  "#009E73", "#D55E00", "#F0E442"]
 
 # --- Internationalisation -------------------------------------------------
 # Both figures can be rendered in English ("en") or Czech ("cs"). All
