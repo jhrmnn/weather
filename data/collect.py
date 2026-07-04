@@ -476,12 +476,25 @@ def main() -> None:
     # happens at all is the workflow's job (it throttles to once an hour).
     fetched_at = dt.datetime.now(dt.timezone.utc)
     new = 0
+    attempts = 0
+    failures = 0
     for model in MODELS:
         print(f"{model.id}:")
         for loc in LOCATIONS:
             where = loc.name or f"{loc.latitude}, {loc.longitude}"
-            path = collect_one(loc, args.data_dir, fetched_at, model,
-                               args.forecast_days)
+            attempts += 1
+            try:
+                path = collect_one(loc, args.data_dir, fetched_at, model,
+                                   args.forecast_days)
+            except requests.exceptions.RequestException as exc:
+                # An endpoint that stays unreachable even after _get's retries
+                # must not abort the remaining fetches: archive whatever we can
+                # reach and let the build deploy it. Only a total wipeout (every
+                # location of every model failing) is treated as a hard error
+                # below — a lone flaky endpoint shouldn't fail the whole job.
+                failures += 1
+                print(f"  {where}: fetch failed after retries: {exc}")
+                continue
             if path is None:
                 print(f"  {where}: latest run already archived; nothing to fetch")
             else:
@@ -491,6 +504,13 @@ def main() -> None:
 
     print(f"Done: {new} new run(s) across {len(LOCATIONS)} location(s) "
           f"× {len(MODELS)} model(s).")
+    if failures:
+        print(f"Warning: {failures} of {attempts} fetch(es) failed after retries.")
+    # If every single fetch failed the upstream API is effectively down; surface
+    # that as a job failure rather than silently deploying with no new data.
+    if attempts and failures == attempts:
+        raise SystemExit(
+            f"All {attempts} fetches failed; treating as an upstream outage.")
 
 
 if __name__ == "__main__":
