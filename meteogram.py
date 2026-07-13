@@ -405,6 +405,19 @@ def plot_median_evolution(runs: list[EnsembleData], output: str,
     at a glance. The most recent run is drawn boldest, on top.
     """
     runs = sorted(runs, key=lambda d: d.run_or_start)
+    all_x = [mdates.date2num(d.times.astype("datetime64[s]").astype(dt.datetime))
+             for d in runs]
+
+    # The x-axis starts at the latest run's start, so older runs are shown only
+    # over the window the newest run covers (see the axes cosmetics below).
+    # Drop runs whose forecast window ends before that start: they never land
+    # on the visible plot, and keeping them would stretch the colour key and
+    # y-range to cover data that is never drawn.
+    x_lo = float(all_x[-1][0])
+    keep = [i for i, x in enumerate(all_x) if float(x[-1]) >= x_lo]
+    runs = [runs[i] for i in keep]
+    all_x = [all_x[i] for i in keep]
+
     inits = [d.run_or_start for d in runs]
     init_nums = mdates.date2num(inits)
 
@@ -418,14 +431,16 @@ def plot_median_evolution(runs: list[EnsembleData], output: str,
     fig, ax = plt.subplots(figsize=(16, 5.6), dpi=140)
 
     units = runs[-1].units
-    all_x: list[np.ndarray] = []
     all_med: list[float] = []
     n = len(runs)
     for i, d in enumerate(runs):
         p50 = np.nanpercentile(d.members, 50, axis=0)
-        x = mdates.date2num(d.times.astype("datetime64[s]").astype(dt.datetime))
-        all_x.append(x)
-        all_med.extend([np.nanmin(p50), np.nanmax(p50)])
+        x = all_x[i]
+        # Only the part of the track inside the visible window feeds the
+        # y-range; anything left of x_lo is clipped off the plot.
+        vis = p50[x >= x_lo]
+        if vis.size and np.isfinite(vis).any():
+            all_med.extend([np.nanmin(vis), np.nanmax(vis)])
         x_fine, p50_fine = _smooth_track(x, p50)
         recency = i / max(n - 1, 1)  # 0 oldest .. 1 newest
         is_newest = i == n - 1
@@ -437,9 +452,8 @@ def plot_median_evolution(runs: list[EnsembleData], output: str,
                 label=_tr(lang, "legend_latest") if is_newest else None)
 
     # --- axes cosmetics -------------------------------------------------
-    # Start the x-axis at the latest run's start, so older runs are shown
-    # only over the window the newest run covers.
-    x_lo = float(all_x[-1][0])
+    # The x-axis starts at the latest run's start (x_lo, computed above), so
+    # older runs are shown only over the window the newest run covers.
     x_hi = max(float(x[-1]) for x in all_x)
     spacing = float(np.median(np.diff(all_x[-1])))  # ~0.125 days (3 h)
     ax.set_xlim(x_lo - spacing, x_hi + spacing)
