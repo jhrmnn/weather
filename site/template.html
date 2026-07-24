@@ -69,6 +69,36 @@
     }
     footer { font-size: .85rem; color: #6a7077; margin-top: 2rem; }
     footer a { color: inherit; }
+    .table-wrap { overflow-x: auto; }
+    table.summary {
+      border-collapse: collapse; width: 100%; font-size: .9rem;
+      font-variant-numeric: tabular-nums;
+    }
+    table.summary th, table.summary td {
+      padding: .35rem .6rem; text-align: right; white-space: nowrap;
+      border-bottom: 1px solid #eceef1;
+    }
+    table.summary thead th {
+      font-weight: 600; color: #4a5058; vertical-align: bottom;
+    }
+    table.summary thead th.grp {
+      text-align: center; border-bottom: 1px solid #c8ccd2;
+    }
+    /* Vertical rule between the High and Low blocks (first Low column). */
+    table.summary tr > .low-start { border-left: 1px solid #d7dade; }
+    table.summary th.day {
+      text-align: left; font-weight: 600; color: inherit;
+      position: sticky; left: 0; background: #fff;
+    }
+    table.summary tbody tr:last-child th,
+    table.summary tbody tr:last-child td { border-bottom: none; }
+    @media (prefers-color-scheme: dark) {
+      table.summary th, table.summary td { border-bottom-color: #2a2e35; }
+      table.summary thead th { color: #aab0b8; }
+      table.summary thead th.grp { border-bottom-color: #3a3f47; }
+      table.summary tr > .low-start { border-left-color: #3a3f47; }
+      table.summary th.day { background: #1e2127; }
+    }
   </style>
 </head>
 <body>
@@ -90,6 +120,14 @@
       <img id="integration-img" src="__INTEG_SRC__" alt="__ALT_INTEG__">
       <div class="meta">
         <span>__CAPTION_INTEG__</span>
+      </div>
+    </div>
+
+    <!-- Daily high/low table: the comparison figure as numbers (city only). -->
+    <div class="card">
+      <div id="summary-table" class="table-wrap">__SUMMARY_TABLE__</div>
+      <div class="meta">
+        <span>__CAPTION_TABLE__</span>
       </div>
     </div>
 
@@ -141,6 +179,7 @@
       var citySel = document.getElementById("city");
       var modelSel = document.getElementById("model");
       var integImg = document.getElementById("integration-img");
+      var summaryTable = document.getElementById("summary-table");
       var meteoImg = document.getElementById("meteogram-img");
       var evoImg = document.getElementById("evolution-img");
       var citySub = document.getElementById("city-sub");
@@ -206,6 +245,7 @@
         var city = CITIES[citySlug];
         var m = city.models[modelId];
         integImg.src = city.integ;
+        summaryTable.innerHTML = city.table;
         meteoImg.src = m.meteo;
         evoImg.src = m.evo;
         citySub.innerHTML = m.sub;

@@ -135,6 +135,70 @@ def _model_options(models: list, default_id: str) -> str:
     return "".join(parts)
 
 
+_DASH = "–"  # en dash for a model's missing (past-horizon) day
+
+
+def _summary_table(per_model: dict, model_color: dict, s: dict,
+                   lang: str) -> str:
+    """Grouped-header HTML table of each model's daily high/low.
+
+    The table representation of the model-comparison ("integration") figure:
+    one row per UTC forecast day, an all-highs block then an all-lows block,
+    each with one column per model (in ``collect.MODELS`` order, colour-accented
+    to match the figure's lines). A model that ends earlier leaves ``–`` in its
+    trailing rows. Depends on the city only, like the figure it mirrors.
+    """
+    models = list(per_model.values())  # (Model, EnsembleData, runs), in order
+    units = models[0][1].units
+    n = len(models)
+
+    # date -> (high, low) per model, and the sorted union of days for the rows.
+    per_day = []
+    all_dates: set = set()
+    for model, data, _runs in models:
+        table = {d: (hi, lo) for d, hi, lo in meteogram.daily_extremes(data)}
+        per_day.append(table)
+        all_dates.update(table)
+    dates = sorted(all_dates)
+
+    def cell(value, first: bool) -> str:
+        cls = ' class="low-start"' if first else ""
+        text = f"{value:.0f}" if value is not None else _DASH
+        return f"<td{cls}>{text}</td>"
+
+    def head(low: bool) -> str:
+        # ``low`` marks the leading cell of the Low block, for the divider rule.
+        cells = []
+        for i, (model, _d, _r) in enumerate(models):
+            cls = " low-start" if low and i == 0 else ""
+            cells.append(
+                f'<th class="model{cls}" '
+                f'style="border-bottom:3px solid {model_color[model.id]}">'
+                f'{html.escape(model.label)}</th>')
+        return "".join(cells)
+
+    rows = []
+    for d in dates:
+        cells = []
+        for idx, low in ((0, False), (1, True)):  # all highs, then all lows
+            for i, t in enumerate(per_day):
+                cells.append(cell(t.get(d, (None, None))[idx], low and i == 0))
+        day_label = f"{i18n.DAY_ABBR[lang][d.weekday()]} {d.day}"
+        rows.append(
+            f'<tr><th class="day">{day_label}</th>{"".join(cells)}</tr>')
+
+    unit = html.escape(units)
+    return (
+        '<table class="summary">'
+        '<thead><tr>'
+        f'<th rowspan="2" class="day">{s["th_day"]}</th>'
+        f'<th colspan="{n}" class="grp">{s["th_high"]} ({unit})</th>'
+        f'<th colspan="{n}" class="grp low-start">{s["th_low"]} ({unit})</th>'
+        f'</tr><tr>{head(False)}{head(True)}</tr></thead>'
+        f'<tbody>{"".join(rows)}</tbody></table>'
+    )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-dir", default="_site",
@@ -245,6 +309,7 @@ def main() -> None:
                 }
             city_data[slug] = {
                 "integ": f"{integ_name}?v={_version(integ_path)}",
+                "table": _summary_table(per_model, model_color, s, lang),
                 "models": model_map,
             }
 
@@ -266,6 +331,8 @@ def main() -> None:
             "__ALT_METEO__": s["alt_meteo"],
             "__ALT_INTEG__": s["alt_integ"],
             "__CAPTION_INTEG__": s["caption_integ"],
+            "__CAPTION_TABLE__": s["caption_table"],
+            "__SUMMARY_TABLE__": default_city["table"],
             "__LABEL_UPDATED__": s["label_updated"],
             "__UPDATED__": updated,
             "__LABEL_REFRESH__": s["label_refresh"],
