@@ -71,11 +71,11 @@
     footer a { color: inherit; }
     .table-wrap { overflow-x: auto; }
     table.summary {
-      border-collapse: collapse; width: 100%; font-size: .9rem;
+      border-collapse: collapse; width: auto; font-size: .9rem;
       font-variant-numeric: tabular-nums;
     }
     table.summary th, table.summary td {
-      padding: .35rem .6rem; text-align: right; white-space: nowrap;
+      padding: .35rem .45rem; text-align: right; white-space: nowrap;
       border-bottom: 1px solid #eceef1;
     }
     table.summary thead th {
@@ -83,6 +83,12 @@
     }
     table.summary thead th.grp {
       text-align: center; border-bottom: 1px solid #c8ccd2;
+    }
+    /* Model sub-headers set vertically so the number columns stay narrow. */
+    table.summary thead th.model { text-align: center; padding: .4rem .2rem; }
+    table.summary thead th.model span {
+      display: inline-block; white-space: nowrap;
+      writing-mode: vertical-rl; transform: rotate(180deg);
     }
     /* Vertical rule between the High and Low blocks (first Low column). */
     table.summary tr > .low-start { border-left: 1px solid #d7dade; }

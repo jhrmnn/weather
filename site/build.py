@@ -28,6 +28,7 @@ import hashlib
 import html
 import json
 import os
+import re
 import sys
 import unicodedata
 
@@ -138,6 +139,19 @@ def _model_options(models: list, default_id: str) -> str:
 _DASH = "–"  # en dash for a model's missing (past-horizon) day
 
 
+def _short_label(label: str) -> str:
+    """Compact model label for the narrow table header columns.
+
+    Drops the grid-resolution suffix (e.g. ``0.25°``) and a trailing ``EPS`` —
+    noise once the model family is clear — so the rotated column headers stay
+    short (``ECMWF IFS 0.25°`` -> ``ECMWF IFS``, ``DWD ICON-EU EPS`` ->
+    ``DWD ICON-EU``). The full label is still used everywhere else.
+    """
+    label = re.sub(r"\s*\d+(?:\.\d+)?°", "", label)
+    label = re.sub(r"\s*EPS$", "", label)
+    return label.strip()
+
+
 def _summary_table(per_model: dict, model_color: dict, s: dict,
                    lang: str) -> str:
     """Grouped-header HTML table of each model's daily high/low.
@@ -174,7 +188,7 @@ def _summary_table(per_model: dict, model_color: dict, s: dict,
             cells.append(
                 f'<th class="model{cls}" '
                 f'style="border-bottom:3px solid {model_color[model.id]}">'
-                f'{html.escape(model.label)}</th>')
+                f'<span>{html.escape(_short_label(model.label))}</span></th>')
         return "".join(cells)
 
     rows = []
