@@ -70,9 +70,12 @@
     footer { font-size: .85rem; color: #6a7077; margin-top: 2rem; }
     footer a { color: inherit; }
     .table-wrap { overflow-x: auto; }
+    /* Sized to its content, so auto side margins centre it in the card on wide
+       screens. (On narrow screens it fills the width and the margins collapse
+       to zero, leaving the phone layout unchanged.) */
     table.summary {
-      border-collapse: collapse; width: auto; font-size: .9rem;
-      font-variant-numeric: tabular-nums;
+      border-collapse: collapse; width: auto; margin-inline: auto;
+      font-size: .9rem; font-variant-numeric: tabular-nums;
     }
     /* Values are centred, not right-aligned, so each column's numbers sit
        under the middle of its rotated model heading. Equal-width digits
