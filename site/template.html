@@ -98,6 +98,18 @@
     }
     table.summary tbody tr:last-child th,
     table.summary tbody tr:last-child td { border-bottom: none; }
+    /* Phones: fill the card exactly rather than sizing to content. Sizing the
+       columns from the container (not the text) keeps the table from scrolling
+       sideways on platforms whose fonts run wider than the ones measured here
+       (iOS renders -apple-system as SF Pro, wider than the desktop fallback). */
+    @media (max-width: 480px) {
+      table.summary { width: 100%; table-layout: fixed; font-size: .82rem; }
+      table.summary th, table.summary td { padding: .35rem .15rem; }
+      table.summary thead th.model { padding: .4rem .1rem; }
+      /* Czech's longer group headings overflow their block unless they wrap. */
+      table.summary thead th.grp { white-space: normal; }
+      table.summary th.day { width: 3.9rem; }
+    }
     @media (prefers-color-scheme: dark) {
       table.summary th, table.summary td { border-bottom-color: #2a2e35; }
       table.summary thead th { color: #aab0b8; }
