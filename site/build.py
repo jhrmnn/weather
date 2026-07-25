@@ -28,6 +28,7 @@ import hashlib
 import html
 import json
 import os
+import re
 import sys
 import unicodedata
 
@@ -133,6 +134,93 @@ def _model_options(models: list, default_id: str) -> str:
         parts.append(
             f'<option value="{model.id}"{selected}>{model.label}</option>')
     return "".join(parts)
+
+
+_DASH = "–"  # en dash for a model's missing (past-horizon) day
+
+
+def _short_label(label: str) -> str:
+    """Compact model label for the narrow table header columns.
+
+    Drops the grid-resolution suffix (e.g. ``0.25°``) and a trailing ``EPS`` —
+    noise once the model family is clear — so the rotated column headers stay
+    short (``ECMWF IFS 0.25°`` -> ``ECMWF IFS``, ``DWD ICON-EU EPS`` ->
+    ``DWD ICON-EU``). The full label is still used everywhere else.
+    """
+    label = re.sub(r"\s*\d+(?:\.\d+)?°", "", label)
+    label = re.sub(r"\s*EPS$", "", label)
+    return label.strip()
+
+
+def _summary_table(per_model: dict, model_color: dict, s: dict,
+                   lang: str) -> str:
+    """Grouped-header HTML table of each model's daily high/low.
+
+    The table representation of the model-comparison ("integration") figure:
+    one row per UTC forecast day, an all-highs block then an all-lows block,
+    each with one column per model (in ``collect.MODELS`` order, colour-accented
+    to match the figure's lines). A model that ends earlier leaves ``–`` in its
+    trailing rows. Depends on the city only, like the figure it mirrors.
+    """
+    models = list(per_model.values())  # (Model, EnsembleData, runs), in order
+    units = models[0][1].units
+    n = len(models)
+
+    # date -> (high, low) per model, and the sorted union of days for the rows.
+    per_day = []
+    all_dates: set = set()
+    for model, data, _runs in models:
+        table = {d: (hi, lo) for d, hi, lo in meteogram.daily_extremes(data)}
+        per_day.append(table)
+        all_dates.update(table)
+    dates = sorted(all_dates)
+
+    def edge(i: int, low: bool) -> str:
+        """Class marking a column that sits against the High/Low divider.
+
+        The two blocks meet between the last High column and the first Low one;
+        both get a class so the divider can be given symmetric breathing room.
+        """
+        if low and i == 0:
+            return " low-start"
+        if not low and i == n - 1:
+            return " high-end"
+        return ""
+
+    def cell(value, i: int, low: bool) -> str:
+        cls = edge(i, low)
+        text = f"{value:.0f}" if value is not None else _DASH
+        return f'<td class="v{cls}">{text}</td>'
+
+    def head(low: bool) -> str:
+        cells = []
+        for i, (model, _d, _r) in enumerate(models):
+            cells.append(
+                f'<th class="model{edge(i, low)}" '
+                f'style="border-bottom:3px solid {model_color[model.id]}">'
+                f'<span>{html.escape(_short_label(model.label))}</span></th>')
+        return "".join(cells)
+
+    rows = []
+    for d in dates:
+        cells = []
+        for idx, low in ((0, False), (1, True)):  # all highs, then all lows
+            for i, t in enumerate(per_day):
+                cells.append(cell(t.get(d, (None, None))[idx], i, low))
+        day_label = f"{i18n.DAY_ABBR[lang][d.weekday()]} {d.day}"
+        rows.append(
+            f'<tr><th class="day">{day_label}</th>{"".join(cells)}</tr>')
+
+    unit = html.escape(units)
+    return (
+        '<table class="summary">'
+        '<thead><tr>'
+        f'<th rowspan="2" class="day">{s["th_day"]}</th>'
+        f'<th colspan="{n}" class="grp">{s["th_high"]} ({unit})</th>'
+        f'<th colspan="{n}" class="grp low-start">{s["th_low"]} ({unit})</th>'
+        f'</tr><tr>{head(False)}{head(True)}</tr></thead>'
+        f'<tbody>{"".join(rows)}</tbody></table>'
+    )
 
 
 def main() -> None:
@@ -245,6 +333,7 @@ def main() -> None:
                 }
             city_data[slug] = {
                 "integ": f"{integ_name}?v={_version(integ_path)}",
+                "table": _summary_table(per_model, model_color, s, lang),
                 "models": model_map,
             }
 
@@ -266,6 +355,8 @@ def main() -> None:
             "__ALT_METEO__": s["alt_meteo"],
             "__ALT_INTEG__": s["alt_integ"],
             "__CAPTION_INTEG__": s["caption_integ"],
+            "__CAPTION_TABLE__": s["caption_table"],
+            "__SUMMARY_TABLE__": default_city["table"],
             "__LABEL_UPDATED__": s["label_updated"],
             "__UPDATED__": updated,
             "__LABEL_REFRESH__": s["label_refresh"],

@@ -211,6 +211,28 @@ def parse_payload(
     )
 
 
+def daily_extremes(data: EnsembleData) -> list[tuple[dt.date, float, float]]:
+    """Per-UTC-day high/low of the ensemble median (50th percentile).
+
+    Returns ``(date, high, low)`` for each UTC calendar day the series covers,
+    where ``high``/``low`` are the daily max/min of the same ensemble median
+    (raw ``nanpercentile``, not the smoothed track) that
+    :func:`plot_model_comparison` draws — the table representation of that
+    figure. Days whose median is entirely missing (every member NaN across the
+    day) are skipped, matching the guarding elsewhere.
+    """
+    p50 = np.nanpercentile(data.members, 50, axis=0)
+    days = data.times.astype("datetime64[D]")
+    out: list[tuple[dt.date, float, float]] = []
+    for day in np.unique(days):
+        vals = p50[days == day]
+        if not np.any(np.isfinite(vals)):
+            continue
+        out.append((day.astype(dt.date),
+                    float(np.nanmax(vals)), float(np.nanmin(vals))))
+    return out
+
+
 def _format_coords(lat: float, lon: float) -> str:
     ns = "N" if lat >= 0 else "S"
     ew = "E" if lon >= 0 else "W"

@@ -69,6 +69,67 @@
     }
     footer { font-size: .85rem; color: #6a7077; margin-top: 2rem; }
     footer a { color: inherit; }
+    .table-wrap { overflow-x: auto; }
+    /* Sized to its content, so auto side margins centre it in the card on wide
+       screens. (On narrow screens it fills the width and the margins collapse
+       to zero, leaving the phone layout unchanged.) */
+    table.summary {
+      border-collapse: collapse; width: auto; margin-inline: auto;
+      font-size: .9rem; font-variant-numeric: tabular-nums;
+    }
+    /* Values are centred, not right-aligned, so each column's numbers sit
+       under the middle of its rotated model heading. Equal-width digits
+       (tabular-nums above) keep them lined up with each other. */
+    table.summary th, table.summary td {
+      padding: .35rem .45rem; text-align: center; white-space: nowrap;
+      border-bottom: 1px solid #eceef1;
+    }
+    table.summary thead th {
+      font-weight: 600; color: #4a5058; vertical-align: bottom;
+    }
+    table.summary thead th.grp {
+      text-align: center; border-bottom: 1px solid #c8ccd2;
+    }
+    /* Model sub-headers set vertically so the number columns stay narrow. */
+    table.summary thead th.model { text-align: center; padding: .4rem .2rem; }
+    table.summary thead th.model span {
+      display: inline-block; white-space: nowrap;
+      writing-mode: vertical-rl; transform: rotate(180deg);
+    }
+    /* Vertical rule between the High and Low blocks, with matching space on
+       either side so neither block's edge column crowds the divider. */
+    table.summary tr > .low-start {
+      border-left: 1px solid #d7dade; padding-left: .8rem;
+    }
+    table.summary tr > .high-end { padding-right: .8rem; }
+    table.summary th.day {
+      text-align: left; font-weight: 600; color: inherit;
+      position: sticky; left: 0; background: #fff;
+    }
+    table.summary tbody tr:last-child th,
+    table.summary tbody tr:last-child td { border-bottom: none; }
+    /* Phones: fill the card exactly rather than sizing to content. Sizing the
+       columns from the container (not the text) keeps the table from scrolling
+       sideways on platforms whose fonts run wider than the ones measured here
+       (iOS renders -apple-system as SF Pro, wider than the desktop fallback). */
+    @media (max-width: 480px) {
+      table.summary { width: 100%; table-layout: fixed; font-size: .82rem; }
+      table.summary th, table.summary td { padding: .35rem .15rem; }
+      table.summary thead th.model { padding: .4rem .1rem; }
+      /* Czech's longer group headings overflow their block unless they wrap. */
+      table.summary thead th.grp { white-space: normal; }
+      table.summary th.day { width: 3.9rem; }
+      /* Columns are narrow here, so the divider gap shrinks to match. */
+      table.summary tr > .low-start { padding-left: .3rem; }
+      table.summary tr > .high-end { padding-right: .3rem; }
+    }
+    @media (prefers-color-scheme: dark) {
+      table.summary th, table.summary td { border-bottom-color: #2a2e35; }
+      table.summary thead th { color: #aab0b8; }
+      table.summary thead th.grp { border-bottom-color: #3a3f47; }
+      table.summary tr > .low-start { border-left-color: #3a3f47; }
+      table.summary th.day { background: #1e2127; }
+    }
   </style>
 </head>
 <body>
@@ -90,6 +151,14 @@
       <img id="integration-img" src="__INTEG_SRC__" alt="__ALT_INTEG__">
       <div class="meta">
         <span>__CAPTION_INTEG__</span>
+      </div>
+    </div>
+
+    <!-- Daily high/low table: the comparison figure as numbers (city only). -->
+    <div class="card">
+      <div id="summary-table" class="table-wrap">__SUMMARY_TABLE__</div>
+      <div class="meta">
+        <span>__CAPTION_TABLE__</span>
       </div>
     </div>
 
@@ -141,6 +210,7 @@
       var citySel = document.getElementById("city");
       var modelSel = document.getElementById("model");
       var integImg = document.getElementById("integration-img");
+      var summaryTable = document.getElementById("summary-table");
       var meteoImg = document.getElementById("meteogram-img");
       var evoImg = document.getElementById("evolution-img");
       var citySub = document.getElementById("city-sub");
@@ -206,6 +276,7 @@
         var city = CITIES[citySlug];
         var m = city.models[modelId];
         integImg.src = city.integ;
+        summaryTable.innerHTML = city.table;
         meteoImg.src = m.meteo;
         evoImg.src = m.evo;
         citySub.innerHTML = m.sub;
