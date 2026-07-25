@@ -74,8 +74,11 @@
       border-collapse: collapse; width: auto; font-size: .9rem;
       font-variant-numeric: tabular-nums;
     }
+    /* Values are centred, not right-aligned, so each column's numbers sit
+       under the middle of its rotated model heading. Equal-width digits
+       (tabular-nums above) keep them lined up with each other. */
     table.summary th, table.summary td {
-      padding: .35rem .45rem; text-align: right; white-space: nowrap;
+      padding: .35rem .45rem; text-align: center; white-space: nowrap;
       border-bottom: 1px solid #eceef1;
     }
     table.summary thead th {
@@ -90,8 +93,12 @@
       display: inline-block; white-space: nowrap;
       writing-mode: vertical-rl; transform: rotate(180deg);
     }
-    /* Vertical rule between the High and Low blocks (first Low column). */
-    table.summary tr > .low-start { border-left: 1px solid #d7dade; }
+    /* Vertical rule between the High and Low blocks, with matching space on
+       either side so neither block's edge column crowds the divider. */
+    table.summary tr > .low-start {
+      border-left: 1px solid #d7dade; padding-left: .8rem;
+    }
+    table.summary tr > .high-end { padding-right: .8rem; }
     table.summary th.day {
       text-align: left; font-weight: 600; color: inherit;
       position: sticky; left: 0; background: #fff;
@@ -109,6 +116,9 @@
       /* Czech's longer group headings overflow their block unless they wrap. */
       table.summary thead th.grp { white-space: normal; }
       table.summary th.day { width: 3.9rem; }
+      /* Columns are narrow here, so the divider gap shrinks to match. */
+      table.summary tr > .low-start { padding-left: .3rem; }
+      table.summary tr > .high-end { padding-right: .3rem; }
     }
     @media (prefers-color-scheme: dark) {
       table.summary th, table.summary td { border-bottom-color: #2a2e35; }

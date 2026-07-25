@@ -175,18 +175,28 @@ def _summary_table(per_model: dict, model_color: dict, s: dict,
         all_dates.update(table)
     dates = sorted(all_dates)
 
-    def cell(value, first: bool) -> str:
-        cls = ' class="low-start"' if first else ""
+    def edge(i: int, low: bool) -> str:
+        """Class marking a column that sits against the High/Low divider.
+
+        The two blocks meet between the last High column and the first Low one;
+        both get a class so the divider can be given symmetric breathing room.
+        """
+        if low and i == 0:
+            return " low-start"
+        if not low and i == n - 1:
+            return " high-end"
+        return ""
+
+    def cell(value, i: int, low: bool) -> str:
+        cls = edge(i, low)
         text = f"{value:.0f}" if value is not None else _DASH
-        return f"<td{cls}>{text}</td>"
+        return f'<td class="v{cls}">{text}</td>'
 
     def head(low: bool) -> str:
-        # ``low`` marks the leading cell of the Low block, for the divider rule.
         cells = []
         for i, (model, _d, _r) in enumerate(models):
-            cls = " low-start" if low and i == 0 else ""
             cells.append(
-                f'<th class="model{cls}" '
+                f'<th class="model{edge(i, low)}" '
                 f'style="border-bottom:3px solid {model_color[model.id]}">'
                 f'<span>{html.escape(_short_label(model.label))}</span></th>')
         return "".join(cells)
@@ -196,7 +206,7 @@ def _summary_table(per_model: dict, model_color: dict, s: dict,
         cells = []
         for idx, low in ((0, False), (1, True)):  # all highs, then all lows
             for i, t in enumerate(per_day):
-                cells.append(cell(t.get(d, (None, None))[idx], low and i == 0))
+                cells.append(cell(t.get(d, (None, None))[idx], i, low))
         day_label = f"{i18n.DAY_ABBR[lang][d.weekday()]} {d.day}"
         rows.append(
             f'<tr><th class="day">{day_label}</th>{"".join(cells)}</tr>')
