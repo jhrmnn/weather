@@ -512,13 +512,29 @@ def plot_median_evolution(runs: list[EnsembleData], output: str,
             transform=ax.transAxes, ha="right", va="top", fontsize=9,
             color="0.25")
 
-    # Colour key: a colorbar mapping line colour -> run initialisation time.
+    # Colour key: a colorbar mapping line colour -> how long before the plot's
+    # left edge (x_lo, the newest run's start) each run was initialised. The
+    # delta is run init - x_lo, so the newest run sits at ~0 and older runs are
+    # negative (further back). Ticks land on a round hour/day step.
     if multi:
         sm = plt.cm.ScalarMappable(norm=norm, cmap=cmap)
         cbar = fig.colorbar(sm, ax=ax, pad=0.01, fraction=0.025)
-        loc = mdates.AutoDateLocator()
-        cbar.ax.yaxis.set_major_locator(loc)
-        cbar.ax.yaxis.set_major_formatter(mdates.ConciseDateFormatter(loc))
+        span_days = x_lo - init_nums[0]
+        use_hours = span_days < 2
+        unit = 1 / 24 if use_hours else 1.0  # days per tick unit
+        suffix = "h" if use_hours else "d"
+        raw_step = max(span_days / 4, unit)
+        nice = [1, 2, 3, 6, 12] if use_hours else [1, 2, 3, 5, 7, 14]
+        step = next((s for s in nice if s * unit >= raw_step), nice[-1]) * unit
+        # Anchor ticks at delta 0 (x_lo), stepping outward, clipped to the range
+        # the colourbar actually spans.
+        k_lo = int(np.ceil((init_nums[0] - x_lo) / step))
+        k_hi = int(np.floor((init_nums[-1] - x_lo) / step))
+        ticks = [x_lo + k * step for k in range(k_lo, k_hi + 1)]
+        labels = [f"{n:+d} {suffix}" if (n := round((t - x_lo) / unit))
+                  else f"0 {suffix}" for t in ticks]
+        cbar.ax.yaxis.set_major_locator(mticker.FixedLocator(ticks))
+        cbar.ax.set_yticklabels(labels)
         cbar.set_label(_tr(lang, "colorbar"), fontsize=8)
         cbar.ax.tick_params(labelsize=7)
 
