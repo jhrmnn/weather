@@ -212,24 +212,38 @@ def parse_payload(
 
 
 def daily_extremes(data: EnsembleData) -> list[tuple[dt.date, float, float]]:
-    """Per-UTC-day high/low of the ensemble median (50th percentile).
+    """Per-UTC-day high/low of the smoothed ensemble-median track.
 
     Returns ``(date, high, low)`` for each UTC calendar day the series covers,
-    where ``high``/``low`` are the daily max/min of the same ensemble median
-    (raw ``nanpercentile``, not the smoothed track) that
-    :func:`plot_model_comparison` draws — the table representation of that
-    figure. Days whose median is entirely missing (every member NaN across the
-    day) are skipped, matching the guarding elsewhere.
+    where ``high``/``low`` are the daily max/min of the Akima-smoothed median
+    track (50th percentile across members, resampled by :func:`_smooth_track`)
+    that :func:`plot_model_comparison` draws — the table representation of that
+    figure. Reading the extremes off the smooth curve rather than the raw
+    3-hourly percentiles keeps the table in step with the plotted line, whose
+    daily peak and trough generally fall *between* the model-native steps: the
+    highest sampled step can sit a few tenths below the crest the curve reaches.
+    Days whose raw median is entirely missing (every member NaN across the day)
+    are skipped, matching the guarding elsewhere — so a fully-absent day is not
+    bridged by the spline interpolating across the gap.
     """
     p50 = np.nanpercentile(data.members, 50, axis=0)
+    x = mdates.date2num(data.times.astype("datetime64[s]").astype(dt.datetime))
+    x_fine, p50_fine = _smooth_track(x, p50)
+    fine_days = np.array([d.date() for d in mdates.num2date(x_fine)])
+
     days = data.times.astype("datetime64[D]")
     out: list[tuple[dt.date, float, float]] = []
     for day in np.unique(days):
-        vals = p50[days == day]
-        if not np.any(np.isfinite(vals)):
+        # Skip days the raw median never covers (every member NaN), so the
+        # spline is not read across a gap it merely bridges by interpolation.
+        if not np.any(np.isfinite(p50[days == day])):
             continue
-        out.append((day.astype(dt.date),
-                    float(np.nanmax(vals)), float(np.nanmin(vals))))
+        day_date = day.astype(dt.date)
+        vals = p50_fine[fine_days == day_date]
+        vals = vals[np.isfinite(vals)]
+        if not vals.size:
+            continue
+        out.append((day_date, float(np.max(vals)), float(np.min(vals))))
     return out
 
 
